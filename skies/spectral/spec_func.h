@@ -121,6 +121,8 @@ public:
     void   set_elec_temp(double Te) { Te_ = Te; }
     double get_elec_temp() const { return Te_; }
 
+    bool is_continue_calc() { return is_continue_calc_; }
+
 private:
     double calc_inner_sum(size_t iq, size_t imd, size_t ieps);
     double calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps, size_t start, size_t finish, size_t low_band, size_t high_band);

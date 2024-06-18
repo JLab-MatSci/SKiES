@@ -230,7 +230,7 @@ array1D SpecFunc::calc_spec_func(double Omega)
     array1D a2f = 0.5 * calc_exter_sum(Omega) * (1.0 / nkpt_ / nqpt_);
     assert(a2f.size() == epsilons_.size());
     for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps) {
-        a2f[ieps] /= trDOSes_[ieps];
+        a2f[ieps] /= (trDOSes_[ieps] / (is_continue_calc_ ? skies::units::Ry_in_eV : 1) );
     }
     return a2f;
 }
@@ -453,9 +453,10 @@ void calc_spec_func(SpecFunc& a2f, const array1D& omegas, const std::string& fna
                 + " eV \n# phon_smearing: " + std::to_string(a2f.phon_smearing())
                 + " eV \n# sign: " + std::to_string(a2f.sign())
                 + "\n# velocity component: " + std::to_string(0)
-                + "\n# electron energy list [eV]: " + array1D_to_string(a2f.epsilons()) 
-                + "\n# transport DOS for energy list [r.a.u.]: " + array1D_to_string(a2f.trans_doses() * skies::units::Ry_in_eV)
-                + "\n\n# frequency [meV]               spectral function\n";
+                + "\n# electron energy list [eV]: " + array1D_to_string(a2f.epsilons())
+                + "\n# transport DOS for energy list [r.a.u.]: "
+                + array1D_to_string(a2f.trans_doses() * ((a2f.is_continue_calc()) ? 1 : skies::units::Ry_in_eV))
+                + "\n\n# frequency [eV]               spectral function\n";
         os << header;
     }
 
@@ -467,7 +468,7 @@ void calc_spec_func(SpecFunc& a2f, const array1D& omegas, const std::string& fna
         {
             os << std::left << std::setw(20) << Om << std::right;
             for (size_t ieps = 0; ieps < a2f.epsilons().size(); ++ieps)
-                os << std::setw(8) << std::setprecision(6) << vals[ieps];
+                os << std::setw(12) << std::setprecision(6) << vals[ieps];
             os << std::endl;
         }
     }
