@@ -25,7 +25,10 @@ get_rcounts_displs(int total, int nchunks);
  * @param separator given separator symbol
 */
 std::vector<std::string>
-custom_split(const std::string& str, const char separator);
+custom_split(const std::string& str, const char separator = ' ');
+
+std::vector<std::string>
+custom_split(const std::string& str, const std::string& separator);
 
 double find_root_bisect(std::function<double(double)> f, double a, double b, double crit);
 

@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cassert>
+#include <regex>
 
 #include <skies/common/alg.h>
 
@@ -31,30 +32,36 @@ get_rcounts_displs(int total, int nchunks)
     return output;
 }
 
-std::vector<std::string> 
-custom_split(const std::string& str, const char separator) {
+std::vector<std::string>
+custom_split_regex(const std::string& str, const std::string& separator)
+{
     std::vector<std::string> strings;
-    int startIndex = 0;
-    int endIndex = 0;
-    size_t i = 0;
-    while (i < str.length() + 1) {
-        // If we reached the end of the word or the end of the input
-        int sep_count = 0;
-        size_t j = i;
-        while (str[j] == separator || j == str.length()) {
-            endIndex = j;
-            if (!sep_count) {
-                std::string temp;
-                temp.append(str, startIndex, endIndex - startIndex);
-                strings.push_back(temp);
-            }
-            startIndex = endIndex + 1;
-            sep_count++;
-            j++;
-        }
-        i += sep_count + 1;
-    }
+    std::regex rgx(separator);
+    std::sregex_token_iterator iter(str.begin(), str.end(), rgx, -1);
+    std::sregex_token_iterator end;
+    if (*iter == "") ++iter;
+    for (; iter != end; ++iter)
+        strings.push_back(*iter);
     return strings;
+}
+
+std::vector<std::string>
+custom_split(const std::string& str, const char separator)
+{
+    // if white space, any number is assumed
+    if (separator == ' ')
+        return custom_split_regex(str, "\\s+");
+    return custom_split_regex(str, std::string(1, separator));
+}
+
+std::vector<std::string>
+custom_split(const std::string& str, const std::string& separator)
+{
+    if (separator.empty())
+        throw std::runtime_error("A null-separator given!\n");
+    if (separator.find(" ") != std::string::npos)
+        throw std::runtime_error("A separator must not contain white spaces!\n");
+    return custom_split_regex(str, separator);
 }
 
 double find_root_bisect(std::function<double(double)> f, double a, double b, double crit)

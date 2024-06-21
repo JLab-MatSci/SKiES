@@ -76,7 +76,7 @@ MODULE epi_interpol
       IF (.NOT. lifc) THEN
         CALL dynwan2bloch(nmodes, nrr_q, irvec_q, ndegen_q, q, uf, w2)
       ELSE
-        CALL errore('lifc is .TRUE.')
+        !CALL errore('lifc is .TRUE.')
         !CALL dynifc2blochf(nmodes, rws, nrws, q, uf, w2)
       ENDIF
       !
@@ -128,7 +128,7 @@ MODULE epi_interpol
       IF (.NOT. lifc) THEN
         CALL dynwan2bloch(nmodes, nrr_q, irvec_q, ndegen_q, q, uf, w2)
       ELSE
-        CALL errore('lifc is .TRUE.')
+        !CALL errore('lifc is .TRUE.')
         !CALL dynifc2blochf(nmodes, rws, nrws, q, uf, w2)
       ENDIF
       !

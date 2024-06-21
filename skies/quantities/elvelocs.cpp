@@ -21,6 +21,8 @@ VelocitiesDrawable::VelocitiesDrawable(char cart)
     dir_ = dir_it->second;
 }
 
+VelocitiesDrawable::~VelocitiesDrawable() {}
+
 arrays::array1D VelocitiesDrawable::interpolate_at(const arrays::array1D& k) const
 {
     assert(k.size() == 3);
@@ -40,6 +42,8 @@ Velocities::Velocities(char cart)
         throw std::runtime_error("Wrong cartesian index given\n");
     dir_ = dir_it->second;
 }
+
+Velocities::~Velocities() {}
 
 arrays::array1D Velocities::interpolate_at(const arrays::array1D& k)
 {

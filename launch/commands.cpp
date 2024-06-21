@@ -217,13 +217,15 @@ bool resolve_cmd(const std::string& cmd,
 		"  --smearing=<sigma>: value of smearing for chosen sampling in eV. Default value is 0.03\n"
         "  --bins=<num>: amount of bins. Default is 300\n"
 		"  --smeared: if given calculates smeared transport DOS. Requires file 'VelocitiesDOS.dat' to be precalculated\n"
-		"  --smearing=<num>: used for smeared DOS calculation, defines smearing value in eV. Default is 0.258\n"
+		"  --Te=<num>: used for smeared DOS calculation, defines smearing value in eV. Default is 0.258\n"
 		"  --cart=<x, y or z>: cartesian index of velocities. Default is x"
 	) {
 		bool is_smeared = opts["smeared"] == "true" ? true : false;
-		double sigma = opts["smearing"] == "" ? 0.258 : std::stod(opts["smearing"]);
+		double sigma = opts["Te"] == "" ? 0.258 : std::stod(opts["Te"]);
 		if (is_smeared)
 		{
+			launch::Timer t;
+			t.start("========= Evaluating smeared transport DOS...");
 			std::ifstream ifs("VelocitiesDOS.dat");
 			if (ifs.fail())
 				throw std::runtime_error("Smeared transport DOS requires precalculated transport DOS in VelocitiesDOS.dat");
@@ -253,6 +255,8 @@ bool resolve_cmd(const std::string& cmd,
 			for (size_t i = 0; i < eigenvals.size(); ++i)
 				os << std::setprecision(6) << std::setw(13) << eigenvals[i] << std::setw(49) << transDOSes_smeared[i] << std::endl;
 			os.close();
+			t.stop("========= Smeared transport DOS is evaluated. Results are written to VelocitiesSmearedDOS.dat");
+			t.print_elapsed("\t Transport DOS evaluation time: ");
 			return cmd_found;
 		}
 
@@ -469,6 +473,57 @@ bool resolve_cmd(const std::string& cmd,
 		t.stop("========= EPI matrix elements along k-path are calculated. The results are written to EPHMatrix.dat.\n"
 		       "          See also KLABELS for correspondance between k-point labels and k-path distance.\n");
 		t.print_elapsed("\t  EPI matrix elements evaluation time: ");
+		ifs.close();
+	} CMD_END;
+
+	CMD("velocs",
+		"calculates velocs \"bands\" structure along given k-path",
+		"skies velocs [options]:\n"
+		"  Options can be given in any order. Options include:\n"
+		"  --cart=<x, y or z>: cartesian component to be evaluated\n"
+		"  --bins=<num>: number of bins between each pair of k-points in given path\n"
+		"  --infile=<str>: the name of file with enumerated k-points.\n\n"
+		"                  The format must be:\n"
+		"                  <k-point-1 label> <num> <num> <num>\n"
+		"                  <k-point-2 label> <num> <num> <num>\n"
+		"                  ...................................\n"
+		"                  <k-point-N label> <num> <num> <num>\n"
+		"                  Here <num> after labels are crystal coordinates.\n"
+		"                  Default name is 'KPATH'\n"
+	) {
+		int bins = opts["bins"] == "" ? 30 : std::stoi(opts["bins"]);
+		std::string	infile = opts["infile"] == "" ? "KPATH" : opts["infile"];
+
+		std::ifstream ifs(infile);
+		if (ifs.fail())
+			throw std::runtime_error("The input file does not exist.\n");\
+
+		interpol::kpLabelCoords kpath;
+		std::string line;
+		launch::Timer t;
+		t.start("========= Evaluating velocities \"band\" structure...");
+		while (ifs.good())
+		{
+			getline(ifs, line);
+			if (!line.empty())
+			{
+				auto line_splitted = custom_split(line, ' ');
+				const std::string label = line_splitted[0].data();
+				double kx = std::stod(line_splitted[1].data());
+				double ky = std::stod(line_splitted[2].data());
+				double kz = std::stod(line_splitted[3].data());
+				
+				array1D k{ kx, ky, kz };
+				kpath.push_back(std::make_pair(label, k));
+			}
+		}
+
+		char cart = opts["cart"] == "" ? 'x' : *opts["cart"].c_str();
+
+		interpol::evaluate_along_kp_path<VelocitiesDrawable>(kpath, bins, cart);
+		t.stop("========= Velocities \"band\" structure is calculated. The results are written to Velocities.dat.\n"
+		       "          See also KLABELS for correspondance between k-point labels and k-path distance.\n");
+		t.print_elapsed("\t  Velocities \"band\" structure evaluation time: ");
 		ifs.close();
 	} CMD_END;
 

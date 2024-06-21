@@ -33,6 +33,8 @@ public:
     VelocitiesDrawable();
     VelocitiesDrawable(char cart);
 
+    virtual ~VelocitiesDrawable();
+
 private:
     static int dir_;
 };
@@ -42,6 +44,8 @@ public:
     arrays::array1D interpolate_at(const arrays::array1D& q);
 
     Velocities(char cart);
+
+    virtual ~Velocities();
 
 private:
     static int dir_;
