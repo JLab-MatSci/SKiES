@@ -87,7 +87,14 @@ SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
 
     launch::Timer t;
     t.start("========= Started transport DOS calculations...");
-    double trDOS = evaluate_smeared_trdos_at_value(kpts_, 0, elec_smearing_, elec_sampling_, Te_, cart_);
+    array2D velocs_squared(nkpt_, array1D(EigenValue::nbands));
+    std::transform(elvelocs_.begin(), elvelocs_.end(), velocs_squared.begin(),
+                    [] (const array1D& v) {
+                        auto squared_v = array1D(EigenValue::nbands, 0.0);
+                        std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto x) { return x * x; });
+                        return squared_v;               
+    });
+    double trDOS = evaluate_smeared_trdos_at_value(0, elec_smearing_, elec_sampling_, eigenens_, velocs_squared, Te_);
     trDOSes_.push_back(trDOS);
     t.stop("========= Transport DOS is evaluated");
     t.print_elapsed("\t  Transport DOS evaluation time: ");
@@ -112,17 +119,42 @@ SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
     , cart_(cart)
 {
     init(kpgrid, qpgrid, elec_sampling, phon_sampling, elec_smearing, phon_smearing);
-    trDOSes_.resize(epsilons_.size());
+    trDOSes_.resize(epsilons_.size(), 0.0);
+#ifdef SKIES_MPI
+    auto trDOSes_tmp = array1D(epsilons_.size(), 0.0);
+#endif
 
     launch::Timer t;
     t.start("\t  Started transport DOS calculations...");
-    int count{ 0 };
-    std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_.begin(),
-                   [this, &count] (double e)
-    {
-        std::cout << "\t    " << std::to_string(++count) << " / " << epsilons_.size() <<  " of energy points done" << std::endl;
-        return evaluate_smeared_trdos_at_value(kpts_, e, elec_smearing_, elec_sampling_, Te_, cart_); 
+
+    array2D velocs_squared(nkpt_, array1D(EigenValue::nbands));
+    std::transform(elvelocs_.begin(), elvelocs_.end(), velocs_squared.begin(),
+                    [] (const array1D& v) {
+                        auto squared_v = array1D(EigenValue::nbands, 0.0);
+                        std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto x) { return x * x; });
+                        return squared_v;
     });
+#ifdef SKIES_MPI
+    auto rcounts = mpi::prepare_rcounts_displs(epsilons_.size()).first;
+    auto displs  = mpi::prepare_rcounts_displs(epsilons_.size()).second;
+
+    int rank = skies::mpi::rank();
+    for (int i = displs[rank]; i < displs[rank] + rcounts[rank]; ++i)
+    {
+        double e = epsilons_[i];
+        trDOSes_tmp[i] = evaluate_smeared_trdos_at_value(e, elec_smearing_, elec_sampling_, eigenens_, velocs_squared, Te_);
+    }
+
+    MPI_Reduce(trDOSes_tmp.data(), trDOSes_.data(), epsilons_.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Bcast(trDOSes_.data(), epsilons_.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#else
+    std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_.begin(),
+                   [this, &count, &velocs_squared] (double e)
+    {
+        auto sm_trDOS = evaluate_smeared_trdos_at_value(kpts_, e, elec_smearing_, elec_sampling_, eigenens_, velocs_squared, Te_, cart_); 
+        return sm_trDOS;
+    });
+#endif
     t.stop("\t  Transport DOS is evaluated");
     std::cout << "\t  Time elapsed: " << t.elapsed() << " ms" << std::endl;
 }

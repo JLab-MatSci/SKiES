@@ -11,6 +11,9 @@ namespace skies {
 std::pair<std::vector<int>, std::vector<int>>
 get_rcounts_displs(int total, int nchunks)
 {
+    if (total < nchunks)
+        throw std::runtime_error("Number of chuncks must be less or equal than total number of elements to decompose\n");
+
     int ave = total / nchunks;
     int res = total % nchunks;
 

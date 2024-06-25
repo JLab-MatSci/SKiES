@@ -151,8 +151,8 @@ bool resolve_cmd(const std::string& cmd,
 		t.start("========= Evaluating electron DOS using Wannier interpolation (EPW)...");
         KPprotocol kpts(grid[0], grid[1], grid[2]);
         array2D weights(kpts.grid.size(), array1D(EigenValue::nbands, 1));
-        quantities::evaluate_dos<EigenValueDrawable>(kpts.grid, low_energy, high_energy, bins,
-                                             smearing, bzsampling::switch_sampling(sampling), weights);
+		auto range = arrays::create_range(low_energy, high_energy, bins);
+        quantities::evaluate_dos<EigenValueDrawable>(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), weights);
 		t.stop("========= Electron DOS is evaluated. Results are written to EigenValueDOS.dat");
 		t.print_elapsed("\t  DOS evaluation time: ");
 	} CMD_END;
@@ -199,8 +199,8 @@ bool resolve_cmd(const std::string& cmd,
 		t.start("========= Evaluating phonon DOS using Wannier interpolation (EPW)...");
         KPprotocol kpts(grid[0], grid[1], grid[2]);
         array2D weights(kpts.grid.size(), array1D(EigenFrequency::nmodes, 1));
-        quantities::evaluate_dos<EigenFrequencyDrawable>(kpts.grid, low_energy, high_energy, bins,
-                                             smearing, bzsampling::switch_sampling(sampling), weights);
+		auto range = arrays::create_range(low_energy, high_energy, bins);
+        quantities::evaluate_dos<EigenFrequencyDrawable>(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), weights);
 		t.stop("========= Phonon DOS is evaluated. Results are written to EigenFrequencyDOS.dat");
 		t.print_elapsed("\t  PhDOS evaluation time: ");
 	} CMD_END;
@@ -212,10 +212,10 @@ bool resolve_cmd(const std::string& cmd,
 		"  --grid=<[nk1,nk2,nk3]>: Monchorst-Pack grid of k-points (nk1 x nk2 x nk3) in the 1st BZ\n"
 		" Non-mandatory:\n"
 		"  Options can be given in any order. Options include:\n"
-        "  --range=<[low,high]>: electron energy range to bracket, from low to high (in eV). Default is [-10.0,10.0]\n"
+        "  --range=<[low,high]>: electron energy range to bracket, from low to high (in eV, relative to eF). Default is [-2.0,2.0]\n"
         "  --sampling=<str>: type of smearing for delta-functions approximation. Supported values are: 'gs' (gaussians), 'fd' (fermi-dirac derivative). Default value is 'fd'\n"
 		"  --smearing=<sigma>: value of smearing for chosen sampling in eV. Default value is 0.03\n"
-        "  --bins=<num>: amount of bins. Default is 300\n"
+        "  --bins=<num>: amount of bins. Default is 100\n"
 		"  --smeared: if given calculates smeared transport DOS. Requires file 'VelocitiesDOS.dat' to be precalculated\n"
 		"  --Te=<num>: used for smeared DOS calculation, defines smearing value in eV. Default is 0.258\n"
 		"  --cart=<x, y or z>: cartesian index of velocities. Default is x"
@@ -282,25 +282,17 @@ bool resolve_cmd(const std::string& cmd,
         if (opts["smearing"] != "")
 		    smearing = stod(opts["smearing"]);
 
-        size_t bins = 300;
+        size_t bins = 100;
         if (opts["bins"] != "")
-		    bins = static_cast<size_t>(stoi(opts["smearing"]));
+		    bins = static_cast<size_t>(stoi(opts["bins"]));
 
 		char cart = opts["cart"] == "" ? 'x' : *opts["cart"].c_str();
 
 		launch::Timer t;
 		t.start("========= Evaluating transport DOS using Wannier interpolation (EPW)...");
 		KPprotocol kpts(grid[0], grid[1], grid[2]);
-		array2D weights(kpts.grid.size(), array1D(EigenValue::nbands));
-        std::transform(kpts.grid.begin(), kpts.grid.end(), weights.begin(),
-                        [cart] (const array1D& k)
-                        {
-                            array1D v = VelocitiesDrawable(cart).interpolate_at(k);
-                            std::transform(v.begin(), v.end(), v.begin(), [] (double d) { return d * d; });
-                            return v;
-                        });
-        quantities::evaluate_dos<VelocitiesDrawable>(kpts.grid, low_energy, high_energy, bins,
-								 smearing, bzsampling::switch_sampling(sampling), weights);
+		auto range = arrays::create_range(low_energy, high_energy, bins);
+		quantities::evaluate_trdos(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), cart);
 		t.stop("========= Transport DOS is evaluated. Results are written to VelocitiesDOS.dat");
 		t.print_elapsed("\t Transport DOS evaluation time: ");
 	} CMD_END;
