@@ -544,7 +544,6 @@ bool resolve_cmd(const std::string& cmd,
 		if (opts["eF"] == "")
 			throw std::runtime_error("a2f command called without Fermi level specification\n");
 		EigenValue::eF = std::stod(opts["eF"]);
-		EigenValue::eF = 0;
 
 		if (opts["sign"] == "")
 			throw std::runtime_error("a2f command called without sign specification\n");

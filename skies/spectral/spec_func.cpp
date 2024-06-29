@@ -315,16 +315,17 @@ SpecFunc::calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps,
         auto q = qpts_[iq];
         auto qk = k + q;
         auto eps = epsilons_[ieps]; // current electron energy level
+
+        // k+q point is handled on the fly
+        auto qkbands = EigenValue::interpolate_at(qk); 
+        auto qkvels  = Velocities(cart_).interpolate_at(qk);
+
         // first loop for quantities at initial k-point and band n
         for (size_t n = low_band; n < high_band + 1; ++n)
         {
             // k point is handled beforehand
             double delta_ekn  = elec_sampling_(eigenens_[ik][n] - eps, elec_smearing_);
             double vkn  = elvelocs_[ik][n];
-
-            // k+q point is handled on the fly
-            auto qkbands = EigenValue::interpolate_at(qk); 
-            auto qkvels  = Velocities(cart_).interpolate_at(qk);
 
             // inner loop for quantities at final k+q-point and band m
             for (size_t m = low_band; m < high_band + 1; ++m)
