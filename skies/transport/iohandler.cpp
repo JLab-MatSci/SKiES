@@ -78,7 +78,7 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type)
         ofs_ << "#  velocity component: " << ihandler.cartes_ind() << std::endl;
         ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
-        ofs_ << "#" << std::endl;
+        ofs_ << "\n#" << std::endl;
         ofs_ << "#  Temperature [K]           Resistivity [muOm cm]" << std::endl;
         break; 
 
@@ -87,7 +87,7 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type)
         ofs_ << "#  phon_smearing: " << ihandler.phon_smearing() << " eV" << std::endl;
         ofs_ << "#  velocity component: " << ihandler.cartes_ind() << std::endl;
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
-        ofs_ << "#" << std::endl;
+        ofs_ << "\n#" << std::endl;
         ofs_ << "#  Temperature [K]           Thermal Resistivity [W/cm/K]" << std::endl;
         break;
 
@@ -96,7 +96,7 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type)
         ofs_ << "#  phon_smearing: " << ihandler.phon_smearing() << " eV" << std::endl;
         ofs_ << "#  velocity component: " << ihandler.cartes_ind() << std::endl;
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
-        ofs_ << "#" << std::endl;
+        ofs_ << "\n#" << std::endl;
         ofs_ << "#  Temperature [K]           Seebeck coefficient [muV/K]" << std::endl;
         break;
 

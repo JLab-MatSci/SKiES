@@ -11,6 +11,8 @@
 #include <skies/quantities/eigenvals.h>
 #include <skies/quantities/highSymPath.h>
 
+#include <skies/sampling/tetrahedra.h>
+
 #include <skies/lattices/kp_protocol.h>
 #include <skies/lattices/latt_protocol.h>
 
@@ -118,6 +120,7 @@ bool resolve_cmd(const std::string& cmd,
         "  --sampling=<str>: type of smearing for delta-functions approximation. Supported values are: 'gs' (gaussians), 'fd' (fermi-dirac derivative). Default value is 'fd'\n"
 		"  --smearing=<sigma>: value of smearing for chosen sampling in eV. Default value is 0.03\n"
         "  --bins=<num>: amount of bins. Default is 300\n"
+		"  --tetra: if given, use tetrahedron method for BZ sampling\n"
 	) {
 		EigenValue::eF = opts["eF"] == "" ? 0 : std::stod(opts["eF"]);
 
@@ -145,14 +148,26 @@ bool resolve_cmd(const std::string& cmd,
 
         size_t bins = 300;
         if (opts["bins"] != "")
-		    bins = static_cast<size_t>(stoi(opts["smearing"]));
+		    bins = static_cast<size_t>(stoi(opts["bins"]));
+
+		bool is_tetra = opts["tetra"] == "true" ? true : false;
 
 		launch::Timer t;
 		t.start("========= Evaluating electron DOS using Wannier interpolation (EPW)...");
-        KPprotocol kpts(grid[0], grid[1], grid[2]);
-        array2D weights(kpts.grid.size(), array1D(EigenValue::nbands, 1));
+        
+		KPprotocol kpts(grid[0], grid[1], grid[2]);
+		array2D weights(kpts.grid.size(), array1D(EigenValue::nbands, 1));
 		auto range = arrays::create_range(low_energy, high_energy, bins);
-        quantities::evaluate_dos<EigenValueDrawable>(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), weights);
+
+		if (is_tetra)
+		{
+			tetrahedra::evaluate_dos(kpts, range);
+		}
+		else
+		{
+        	quantities::evaluate_dos<EigenValueDrawable>(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), weights);
+		}
+
 		t.stop("========= Electron DOS is evaluated. Results are written to EigenValueDOS.dat");
 		t.print_elapsed("\t  DOS evaluation time: ");
 	} CMD_END;
@@ -168,6 +183,7 @@ bool resolve_cmd(const std::string& cmd,
         "  --sampling=<str>: type of smearing for delta-functions approximation. Supported values are: 'gs' (gaussians), 'fd' (fermi-dirac derivative). Default value is 'fd'\n"
 		"  --smearing=<sigma>: value of smearing for chosen sampling in meV. Default value is 0.5\n"
         "  --bins=<num>: amount of bins. Default is 300\n"
+		"  --tetra: if given, use tetrahedron method for BZ sampling\n"
 	) {
 		if (opts["grid"] == "")
 			throw std::runtime_error("k-point grid is not specified");
@@ -195,12 +211,23 @@ bool resolve_cmd(const std::string& cmd,
         if (opts["bins"] != "")
 		    bins = static_cast<size_t>(stoi(opts["smearing"]));
 
+		bool is_tetra = opts["tetra"] == "true" ? true : false;
+
 		launch::Timer t;
 		t.start("========= Evaluating phonon DOS using Wannier interpolation (EPW)...");
         KPprotocol kpts(grid[0], grid[1], grid[2]);
         array2D weights(kpts.grid.size(), array1D(EigenFrequency::nmodes, 1));
 		auto range = arrays::create_range(low_energy, high_energy, bins);
-        quantities::evaluate_dos<EigenFrequencyDrawable>(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), weights);
+
+		if (is_tetra)
+		{
+			tetrahedra::evaluate_phdos(kpts, range);
+		}
+		else
+		{
+        	quantities::evaluate_dos<EigenFrequencyDrawable>(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), weights);
+		}
+
 		t.stop("========= Phonon DOS is evaluated. Results are written to EigenFrequencyDOS.dat");
 		t.print_elapsed("\t  PhDOS evaluation time: ");
 	} CMD_END;
@@ -218,7 +245,8 @@ bool resolve_cmd(const std::string& cmd,
         "  --bins=<num>: amount of bins. Default is 100\n"
 		"  --smeared: if given calculates smeared transport DOS. Requires file 'VelocitiesDOS.dat' to be precalculated\n"
 		"  --Te=<num>: used for smeared DOS calculation, defines smearing value in eV. Default is 0.258\n"
-		"  --cart=<x, y or z>: cartesian index of velocities. Default is x"
+		"  --cart=<x, y or z>: cartesian index of velocities. Default is x\n"
+		"  --tetra: if given, use tetrahedron method for BZ sampling\n"
 	) {
 		bool is_smeared = opts["smeared"] == "true" ? true : false;
 		double sigma = opts["Te"] == "" ? 0.258 : std::stod(opts["Te"]);
@@ -288,11 +316,22 @@ bool resolve_cmd(const std::string& cmd,
 
 		char cart = opts["cart"] == "" ? 'x' : *opts["cart"].c_str();
 
+		bool is_tetra = opts["tetra"] == "true" ? true : false;
+
 		launch::Timer t;
 		t.start("========= Evaluating transport DOS using Wannier interpolation (EPW)...");
 		KPprotocol kpts(grid[0], grid[1], grid[2]);
 		auto range = arrays::create_range(low_energy, high_energy, bins);
-		quantities::evaluate_trdos(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), cart);
+
+		if (is_tetra)
+		{
+			tetrahedra::evaluate_trdos(kpts, range, cart);
+		}
+		else
+		{
+			quantities::evaluate_trdos(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), cart);
+		}
+
 		t.stop("========= Transport DOS is evaluated. Results are written to VelocitiesDOS.dat");
 		t.print_elapsed("\t Transport DOS evaluation time: ");
 	} CMD_END;
@@ -540,6 +579,7 @@ bool resolve_cmd(const std::string& cmd,
 		"  --Te=<num>: electronic temperature in eV to smear transport DOS. Default value is 0.258\n"
         "  --filename=<str>: the name of the output file. Default filename is 'SpecFunc_plus(minus).dat'\n"
         "  --continue: if specified, continue calculation of spectral function. The filename which contains an inerrupted calculation is must have name 'LambdaTr_plus(minus).dat'\n"
+		"  --tetra: if given, use doubly constrained tetrahedron method for BZ sampling\n"
 	) {
 		if (opts["eF"] == "")
 			throw std::runtime_error("a2f command called without Fermi level specification\n");
@@ -635,6 +675,8 @@ bool resolve_cmd(const std::string& cmd,
 
 		char cart = opts["cart"] == "" ? 'x' : *opts["cart"].c_str();
 
+		bool is_tetra = opts["tetra"] == "true" ? true : false;
+
 		launch::Timer t;
 		if (opts["epsilons"] == "")
 		{
@@ -646,7 +688,8 @@ bool resolve_cmd(const std::string& cmd,
 								ph_smearing,
 								sign,
 								Te,
-								cart
+								cart,
+								is_tetra
 			);
 			a2f.set_low_band(low_band);
 			a2f.set_high_band(high_band);
@@ -669,7 +712,8 @@ bool resolve_cmd(const std::string& cmd,
                                 sign,
                                 sign,
 								Te,
-								cart
+								cart,
+								is_tetra
             );
 			a2f.set_low_band(low_band);
 			a2f.set_high_band(high_band);

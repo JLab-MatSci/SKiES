@@ -6,8 +6,11 @@
 #pragma once
 
 #include <vector>
+#include <cassert>
 #include <algorithm>
 #include <stdexcept>
+
+#include <iostream>
 
 namespace skies { namespace arrays {
 
@@ -166,6 +169,108 @@ inline array1D create_range(double begin, double end, int nbins)
     double d = (end - begin) / (nbins + 1.0);
     std::generate(range.begin(), range.end(), [d, pos = begin - d] () mutable { pos += d; return pos; });
     return range;
+}
+
+/**
+ * \brief Makes a 1D-version of a 2D array
+ * @param mat2d given 2D-array
+ * @result new 1D vector which contains flattened elements
+*/
+template <typename T>
+std::vector<T> flatten(const std::vector<std::vector<T>>& mat2d)
+{
+    std::vector<T> flattened;
+    auto n1 = mat2d.size();
+    auto n2 = mat2d[0].size();
+    flattened.resize(n1 * n2);
+    for (size_t i1 = 0; i1 < n1; ++i1)
+    {
+        for (size_t i2 = 0; i2 < n2; ++i2)
+        {
+            flattened[i1 * n2 + i2] = mat2d[i1][i2];
+        }
+    }
+    return flattened;
+}
+
+/**
+ * \brief Makes a 1D-version of a 3D array
+ * @param mat3d given 3D-array
+ * @result new 1D vector which contains flattened elements
+*/
+template <typename T>
+std::vector<T> flatten(const std::vector<std::vector<std::vector<T>>>& mat3d)
+{
+    std::vector<T> flattened;
+    auto n1 = mat3d.size();
+    auto n2 = mat3d[0].size();
+    auto n3 = mat3d[0][0].size();
+    auto n23 = n2 * n3;
+    flattened.resize(n1 * n2 * n3, 0);
+    for (size_t i1 = 0; i1 < n1; ++i1)
+    {
+        for (size_t i2 = 0; i2 < n2; ++i2)
+        {
+            for (size_t i3 = 0; i3 < n3; ++i3)
+            {
+                flattened[i1 * n23 + i2 * n3 + i3] = mat3d[i1][i2][i3];
+            }
+        }
+    }
+    return flattened;
+}
+
+/**
+ * \brief Creates 2D-array with given dimensions from a given 1D-array
+ * @param v given 1D-array
+ * @param n1 number of rows
+ * @param n2 number of columns
+ * @result new reshaped 2D array
+*/
+template <typename T>
+std::vector<std::vector<T>>
+reshape(const std::vector<T>& v, size_t n1, size_t n2)
+{
+    assert(v.size() == n1 * n2);
+    std::vector<std::vector<T>> mat2d;
+    mat2d.resize(n1, std::vector<T>(n2, 0));
+    for (size_t i1 = 0; i1 < n1; ++i1)
+    {
+        std::vector<T> tmp(n2);
+        for (size_t i2 = 0; i2 < n2; ++i2)
+        {
+            tmp[i2] = v[i2 + i1 * n2];
+        }
+        mat2d[i1] = tmp;
+    }
+    return mat2d;
+}
+
+/**
+ * \brief Creates 3D-array with given dimensions from a given 1D-array
+ * @param v given 1D-array
+ * @param n1 number of layers
+ * @param n2 number of rows in one layer
+ * @param n3 number of columns in one layer
+ * @result new reshaped 3D array
+*/
+template <typename T>
+std::vector<std::vector<std::vector<T>>>
+reshape(const std::vector<T>& v, size_t n1, size_t n2, size_t n3)
+{
+    assert(v.size() == n1 * n2 * n3);
+    std::vector<std::vector<std::vector<T>>> mat3d;
+    mat3d.resize(n1, std::vector<std::vector<T>>{n2, std::vector<T>(n3, 0.0)});
+    auto n23 = n2 * n3;
+    for (size_t i1 = 0; i1 < n1; ++i1)
+    {
+        auto start = i1 * n23;
+        auto finish = start + n23;
+        std::vector<T> v_part(v.begin() + start, v.begin() + finish);
+        assert(v_part.size() == n23);
+        mat3d[i1] = reshape<T>(v_part, n2, n3);
+    }
+    return mat3d;
 }
 
 } // arrays
