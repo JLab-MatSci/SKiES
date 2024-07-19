@@ -1,4 +1,7 @@
-add_library(skies_sampling ${CMAKE_CURRENT_SOURCE_DIR}/sampling.cpp)
+add_library(skies_sampling
+			${CMAKE_CURRENT_SOURCE_DIR}/sampling.cpp
+			${CMAKE_CURRENT_SOURCE_DIR}/tetrahedra.cpp
+)
 add_dependencies(skies_sampling skies_common)
 
 set_target_properties(skies_sampling PROPERTIES
@@ -18,6 +21,8 @@ install(TARGETS skies_sampling
 	EXPORT skies-targets
 )
 
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/sampling.h
+install(FILES
+		${CMAKE_CURRENT_SOURCE_DIR}/sampling.h
+		${CMAKE_CURRENT_SOURCE_DIR}/tetrahedra.h
 	DESTINATION include/skies/sampling
 )

@@ -15,7 +15,8 @@ public:
                double phon_smearing,
                int sign,
                double Te,
-               char cart);
+               char cart,
+               bool is_tetra = false);
 
     SpecFunc(const std::vector<size_t>& kpgrid,
                const std::vector<size_t>& qpgrid,
@@ -27,7 +28,8 @@ public:
                int sign,
                int sign_pr,
                double Te,
-               char cart);
+               char cart,
+               bool is_tetra = false);
 
     // constructor from lambda_tr.dat file
     SpecFunc(const std::string& fname);
@@ -121,17 +123,22 @@ public:
     void   set_elec_temp(double Te) { Te_ = Te; }
     double get_elec_temp() const { return Te_; }
 
-    bool is_continue_calc() { return is_continue_calc_; }
+    bool is_continue_calc() const { return is_continue_calc_; }
+    bool is_tetra() const { return is_tetra_; }
 
 private:
     double calc_inner_sum(size_t iq, size_t imd, size_t ieps);
     double calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps, size_t start, size_t finish, size_t low_band, size_t high_band);
+    double calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps, size_t start, size_t finish, size_t low_band, size_t high_band);
     arrays::array1D calc_exter_sum(double Omega);
+
+    void dump_trdos_file();
     
     std::string type_of_el_smear_;
     std::string type_of_ph_smear_;
 
     bool is_continue_calc_{ false };
+    bool is_tetra_{ false };
 };
 
 // main driver functions
