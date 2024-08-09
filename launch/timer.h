@@ -5,7 +5,9 @@
 #include <cassert>
 #include <iostream>
 
+#ifdef SKIES_MPI
 #include <skies/utils/mpi_wrapper.h>
+#endif
 
 namespace skies { namespace launch {
 

@@ -39,8 +39,6 @@ namespace skies { namespace quantities {
 
 
 class EigenFrequencyDrawable : public AnyQuantity {
-private:
-    arrays::array1D values_;
 public:
     static size_t nmodes;
 public:

@@ -13,6 +13,10 @@ if (SKIES_ENABLE_MPI)
 	target_link_libraries(skies_spectral PUBLIC skies_mpi_wrapper)
 endif()
 
+if (SKIES_ENABLE_TBB)
+	target_link_libraries(skies_spectral PUBLIC TBB::tbb)
+endif()
+
 install(TARGETS skies_spectral
         DESTINATION lib
 	EXPORT skies-targets

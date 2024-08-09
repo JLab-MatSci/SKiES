@@ -159,8 +159,8 @@ MODULE epi_initialize
       !
         IMPLICIT NONE
         INTEGER(c_int), INTENT(IN) :: rank
-        ! INTEGER(c_int) :: use_ws_int
-        ! INTEGER(c_int) :: nkc1, nkc2, nkc3, nqc1, nqc2, nqc3
+        INTEGER(c_int) :: use_ws_int
+        INTEGER(c_int) :: nkc1, nkc2, nkc3, nqc1, nqc2, nqc3
         !
         REAL(KIND = DP), ALLOCATABLE :: w_centers(:, :)
         !REAL(KIND = DP) :: eF
@@ -170,27 +170,28 @@ MODULE epi_initialize
         gamma_only = .FALSE.
         !
         meta_ionode = (rank == 0)
-        CALL epw_readin()
-        ! vme = 'wannier'
-        ! lifc = .FALSE.
-        ! etf_mem = 1
-        ! eig_read = .FALSE.
-        ! epwread = .TRUE.
-        ! epbread = .FALSE.
-        ! wannierize = .FALSE.
-        ! longrange = .FALSE.
+        !CALL epw_readin()
+        vme = 'wannier'
+        lifc = .FALSE.
+        etf_mem = 1
+        eig_read = .FALSE.
+        epwread = .TRUE.
+        epbread = .FALSE.
+        wannierize = .FALSE.
+        longrange = .FALSE.
 
-        ! lpolar = .FALSE.
-        ! lphase = .FALSE.
-        ! system_2d  = .FALSE.
-        ! qrpl = .FALSE.
-        ! use_ws = .FALSE.
-        ! nkc1 = 6
-        ! nkc2 = 6
-        ! nkc3 = 6
-        ! nqc1 = 6
-        ! nqc2 = 6
-        ! nqc3 = 6
+        lpolar = .FALSE.
+        lphase = .FALSE.
+        system_2d  = .FALSE.
+        qrpl = .FALSE.
+        use_ws = .FALSE.
+        nkc1 = 6
+        nkc2 = 6
+        nkc3 = 6
+        nqc1 = 6
+        nqc2 = 6
+        nqc3 = 6
+        use_ws_int = .FALSE.
         ! !
         ALLOCATE(w_centers(3, nbndsub), STAT = ierr)
         IF (ierr /= 0) CALL errore('epi_init', 'Error allocating w_centers', 1)

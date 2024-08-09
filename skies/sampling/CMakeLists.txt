@@ -11,6 +11,10 @@ set_target_properties(skies_sampling PROPERTIES
 target_link_libraries(skies_sampling PUBLIC
 	skies_common)
 
+if (SKIES_ENABLE_TBB)
+	target_link_libraries(skies_sampling PUBLIC TBB::tbb)
+endif()
+
 target_include_directories(skies_sampling PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
 	$<INSTALL_INTERFACE:include/skies/sampling>

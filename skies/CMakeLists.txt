@@ -9,6 +9,10 @@ if (SKIES_ENABLE_MPI)
     target_link_libraries(skies_interface INTERFACE skies_mpi_wrapper)
 endif()
 
+if (SKIES_ENABLE_TBB)
+    target_link_libraries(skies_interface INTERFACE TBB::tbb)
+endif()
+
 add_subdirectory(common)
 target_link_libraries(skies_interface INTERFACE skies_common)
 

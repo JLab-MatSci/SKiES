@@ -3,6 +3,7 @@
 #include <skies/common/alg.h>
 #include <skies/quantities/eigenvals.h>
 #include <skies/lattices/kp_protocol.h>
+#include <skies/utils/tbb_wrapper.h>
 
 #include <iostream>
 
@@ -60,10 +61,12 @@ void EigenValue::find_eF(double TeV, double crit)
     size_t nk1 = 50;
     size_t nk2 = 50;
     size_t nk3 = 50;
-    auto kpts = skies::KPprotocol(nk1, nk2, nk3).grid;
+    skies::KPprotocol kprot{nk1, nk2, nk3};
+    auto kpts = kprot.grid();
     eigenens2D.resize(kpts.size(), array1D(EigenValue::nbands));
-    std::transform(kpts.begin(), kpts.end(), eigenens2D.begin(),
-                    [] (auto&& k) { return EigenValue::interpolate_at(k); });
+    std::transform(PAR kpts.begin(), kpts.end(), eigenens2D.begin(), [] (auto&& k) {
+        return EigenValue::interpolate_at(k);
+    });
     array1D eigenens;
     for (auto row : eigenens2D)
         for (auto e : row)

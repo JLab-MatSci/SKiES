@@ -8,6 +8,10 @@ if (SKIES_ENABLE_MPI)
 	target_link_libraries(skies PRIVATE skies_mpi_wrapper)
 endif()
 
+if (SKIES_ENABLE_TBB)
+	target_link_libraries(skies PRIVATE TBB::tbb)
+endif()
+
 target_link_libraries(skies PRIVATE skies_interface)
 
 target_include_directories(skies PRIVATE

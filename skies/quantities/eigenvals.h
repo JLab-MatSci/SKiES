@@ -26,7 +26,6 @@ namespace skies { namespace quantities {
 class EigenValueDrawable : public AnyQuantity {
 public:
     static size_t nbands;
-    arrays::array2D values;
 public:
     std::string name() const override { return "EigenValue"; }
     arrays::array1D interpolate_at(const arrays::array1D& k) const override;

@@ -41,13 +41,15 @@ private:
 
 class OHandler {
 public:
-    OHandler(const char* a2f_fnm,  const char* cond_fnm, ResistType type);
+    OHandler(const char* a2f_fnm,  const char* cond_fnm, ResistType type, const arrays::array1D& ion_Temps = arrays::array1D());
     ~OHandler();
 
     void dump(const arrays::array1D& Temps, const arrays::array1D& resist);
+    void dump(const arrays::array1D& Temps, const arrays::array2D& resist);
 
 private:
     std::ofstream ofs_;
+    arrays::array1D ion_Temps_;
 };
 
 } // transport

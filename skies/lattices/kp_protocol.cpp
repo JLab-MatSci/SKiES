@@ -12,11 +12,26 @@ using namespace skies::arrays;
 
 namespace skies {
 
-KPprotocol::KPprotocol(int n1, int n2, int n3)
+bool operator== (const KPprotocol& kp1, const KPprotocol& kp2)
+{
+    return (kp1.n1_ == kp2.n1_) &&
+           (kp1.n2_ == kp2.n2_) &&
+           (kp1.n3_ == kp2.n3_) &&
+           (kp1.nkpt_ == kp2.nkpt_) &&
+           (kp1.grid_ == kp2.grid_) &&
+           (kp1.igrid_ == kp2.igrid_) &&
+           (kp1.kprange_ == kp2.kprange_) &&
+           (kp1.vd_from_ind_ == kp2.vd_from_ind_) &&
+           (kp1.vi_from_ind_ == kp2.vi_from_ind_);
+}
+
+KPprotocol::KPprotocol() {}
+
+KPprotocol::KPprotocol(size_t n1, size_t n2, size_t n3)
     : n1_(n1), n2_(n2), n3_(n3)
-    , nkpt(n1 * n2 * n3)
-    , grid(nkpt, array1D(3))
-    , igrid(nkpt, std::vector<int>(3))
+    , nkpt_(n1 * n2 * n3)
+    , grid_(nkpt_, array1D(3, 0.0))
+    , igrid_(nkpt_, std::vector<int>(3, 0))
 {
     std::vector<int> vi1(n1);
     std::vector<int> vi2(n2);
@@ -36,8 +51,8 @@ KPprotocol::KPprotocol(int n1, int n2, int n3)
         for (auto i1 : vi1)
             for (auto i2 : vi2)
             {
-                std::vector<int>& ki = igrid[cnt];
-                std::vector<double>& k = grid[cnt];
+                std::vector<int>& ki = igrid_[cnt];
+                std::vector<double>& k = grid_[cnt];
                 ki[0] = i1; k[0] = 0.5 * static_cast<double>(i1) / n1;
                 ki[1] = i2; k[1] = 0.5 * static_cast<double>(i2) / n2;
                 ki[2] = i3; k[2] = 0.5 * static_cast<double>(i3) / n3;
@@ -113,7 +128,7 @@ array1D KPprotocol::find_vd_from_ind(size_t ind) const
     return vd_from_ind_.at(ind);
 }
 
-std::vector<size_t> KPprotocol::range() const
+const std::vector<size_t>& KPprotocol::range() const &
 {
     return kprange_;
 }

@@ -52,6 +52,7 @@ MODULE epi_interpol
     ! adaptor functions to use in iso_c_binding
     !
     ! PHONON FREQUENCIES
+    ! IT'S WRONG TO CALL THIS SUBROUTINE IN MANY THREADS (uf and epmatwef are shared vars)!
     SUBROUTINE interpolate_eigen_freq_at(kx, ky, kz, frs) bind(c, name='interpEigenFreqAt')
       !
       IMPLICIT NONE
@@ -75,7 +76,7 @@ MODULE epi_interpol
       !
       IF (.NOT. lifc) THEN
         CALL dynwan2bloch(nmodes, nrr_q, irvec_q, ndegen_q, q, uf, w2)
-      ELSE
+      !ELSE
         !CALL errore('lifc is .TRUE.')
         !CALL dynifc2blochf(nmodes, rws, nrws, q, uf, w2)
       ENDIF
@@ -127,7 +128,7 @@ MODULE epi_interpol
       q = [kx, ky, kz]
       IF (.NOT. lifc) THEN
         CALL dynwan2bloch(nmodes, nrr_q, irvec_q, ndegen_q, q, uf, w2)
-      ELSE
+      !ELSE
         !CALL errore('lifc is .TRUE.')
         !CALL dynifc2blochf(nmodes, rws, nrws, q, uf, w2)
       ENDIF

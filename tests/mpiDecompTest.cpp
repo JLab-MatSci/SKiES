@@ -5,8 +5,9 @@
 TEST(manyProcs, mpiDecomp) {
     int total = 10;
     int nchuncks = 3;
-    auto rcounts = skies::get_rcounts_displs(total, nchuncks).first;
-    auto displs  = skies::get_rcounts_displs(total, nchuncks).second;
+    auto rcounts_displs = skies::get_rcounts_displs(total, nchuncks);
+    auto rcounts = rcounts_displs.first;
+    auto displs  = rcounts_displs.second;
     EXPECT_EQ(rcounts[0], 4);
     EXPECT_EQ(rcounts[1], 3);
     EXPECT_EQ(rcounts[2], 3);
@@ -18,8 +19,9 @@ TEST(manyProcs, mpiDecomp) {
 TEST(equal, mpiDecomp) {
     int total = 10;
     int nchuncks = 10;
-    auto rcounts = skies::get_rcounts_displs(total, nchuncks).first;
-    auto displs  = skies::get_rcounts_displs(total, nchuncks).second;
+    auto rcounts_displs = skies::get_rcounts_displs(total, nchuncks);
+    auto rcounts = rcounts_displs.first;
+    auto displs  = rcounts_displs.second;
     EXPECT_EQ(rcounts[0], 1);
     EXPECT_EQ(rcounts[9], 1);
     EXPECT_EQ(displs[0],  0);
@@ -30,7 +32,7 @@ TEST(fewProcs, mpiDecomp) {
     int total = 3;
     int nchuncks = 10;
     try {
-        skies::get_rcounts_displs(total, nchuncks).first;
+        auto rcounts_displs = skies::get_rcounts_displs(total, nchuncks);
     } catch (std::runtime_error& err) {
         EXPECT_STREQ(err.what(), "Number of chuncks must be less or equal than total number of elements to decompose\n");
     }

@@ -19,6 +19,8 @@
 #include <skies/utils/mpi_wrapper.h>
 #endif
 
+#include <skies/utils/tbb_wrapper.h>
+
 using namespace skies::arrays;
 using namespace skies::bzsampling;
 using namespace skies::quantities;
@@ -29,44 +31,188 @@ using namespace skies::mpi;
 
 namespace skies { namespace spectral {
 
-void SpecFunc::init(const std::vector<size_t>& kpgrid,
-                    const std::vector<size_t>& qpgrid,
-                    bzsampling::SamplingFunc elec_sampling,
-                    bzsampling::SamplingFunc phon_sampling,
-                    double elec_smearing,
-                    double phon_smearing
-) {
-    nkx_ = kpgrid[0]; nqx_ = qpgrid[0];
-    nky_ = kpgrid[1]; nqy_ = qpgrid[1];
-    nkz_ = kpgrid[2]; nqz_ = qpgrid[2];
+void SpecFunc::init()
+{
+    launch::Timer t;
+    t.start("========= Started transport spectral function initialization...");
+    if (is_tetra_)
+    {
+        tetrahedra::TetraHandler::set_kprot(kprot_);
+        tetrahedra::TetraHandler::set_phon_tag(true);
+        tetrahedra::TetraHandler::set_qprot(qprot_);
+        tetrahedra::DoubleTetraHandler::set_kprot(kprot_);
+    }
 
-    kpts_ = KPprotocol(nkx_, nky_, nkz_).grid;
-    qpts_ = KPprotocol(nqx_, nqy_, nqz_).grid;
+    // eigenens_ at (n,k)-grid are filled only once here
+    eigenens_.resize(kprot_.nkpt(), array1D(nbnd_));
+    std::transform(PAR kprot_.grid().begin(), kprot_.grid().end(), eigenens_.begin(), [] (auto&& k) {
+        return EigenValueDrawable().interpolate_at(k);
+    });
 
-    nqpt_ = qpts_.size();
-    nkpt_ = kpts_.size();
+    // eigefreqs_ at (\nu,q)-grid are filled only once here
+    eigenfreqs_.resize(qprot_.nkpt(), array1D(nmds_));
+    std::transform(PAR qprot_.grid().begin(), qprot_.grid().end(), eigenfreqs_.begin(), [] (auto&& q) {
+        return EigenFrequencyDrawable().interpolate_at(q);
+    });
 
-    nbnd_ = EigenValue::nbands;
-    nmds_ = EigenFrequency::nmodes;
+    // elvelocs at (n,k) are filled only once here
+    fsh_alpha_.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
+    prepare_squared_velocs(alpha_, elvelocs_alpha_, elvelocs_alpha_sq_);
+    elvelocs_beta_ = elvelocs_alpha_;
+    if (alpha_ != beta_)
+    {
+        fsh_beta_.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
+        prepare_squared_velocs(beta_, elvelocs_beta_, elvelocs_beta_sq_);
+    }
 
-    low_band_ = 0;
-    high_band_ = nbnd_ - 1;
+    // fsh_alpha_ and fsh_beta_ are initialized only once here
+    array2D weights(EigenValueDrawable::nbands, array1D(kprot_.nkpt(), 1));
+    tetrahedra::TetraHandler th_dos(std::move(weights), transpose(eigenens_));
+    th_dos_ = std::move(th_dos);
+    if (is_tetra_)
+    {
+        tetrahedra::TetraHandler th_trdos_alpha(transpose(elvelocs_alpha_sq_), transpose(eigenens_));
+        th_trdos_alpha_ = std::move(th_trdos_alpha);
+        if (epsilons_.size() > 1)
+            prepare_fsh(th_dos_, th_trdos_alpha_, elvelocs_alpha_, fsh_alpha_);
+        if (alpha_ != beta_)
+        {
+            tetrahedra::TetraHandler th_trdos_beta(transpose(elvelocs_beta_sq_), transpose(eigenens_));
+            th_trdos_beta_ = std::move(th_trdos_beta);
+            if (epsilons_.size() > 1)
+                prepare_fsh(th_dos_, th_trdos_beta_, elvelocs_beta_, fsh_beta_);
+        }
+        else
+        {
+            fsh_beta_ = fsh_alpha_; // by default when alpha_ == beta_
+        }
+    }
+    else // is_tetra
+    {
+        if (epsilons_.size() > 1)
+            prepare_fsh(elvelocs_alpha_, elvelocs_alpha_sq_, fsh_alpha_);
+        if (alpha_ != beta_)
+        {
+            if (epsilons_.size() > 1)
+                prepare_fsh(elvelocs_beta_, elvelocs_beta_sq_, fsh_beta_);
+        }
+        else
+        {
+            fsh_beta_ = fsh_alpha_; // by default when alpha_ == beta_
+        }
+    }
 
-    eigenens_.resize(nkpt_, array1D(nbnd_));
-    elvelocs_.resize(nkpt_, array1D(nbnd_));
-    eigenfreqs_.resize(nqpt_, array1D(nmds_));
+    // dump fsh into file to continue calculations in future
+    dump_array(std::string{"FSH_"} + std::string{alpha_} + std::string{".dat"}, fsh_alpha_);
+    dump_array(std::string{"FSH_"} + std::string{ beta_} + std::string{".dat"},  fsh_beta_);
 
-    std::transform(kpts_.begin(), kpts_.end(), eigenens_.begin(),
-                    [] (auto&& k) { return EigenValue::interpolate_at(k); });
-    std::transform(kpts_.begin(), kpts_.end(), elvelocs_.begin(),
-                    [this] (auto&& k) { return Velocities(cart_).interpolate_at(k); });
-    std::transform(qpts_.begin(), qpts_.end(), eigenfreqs_.begin(),
-                    [] (auto&& q) { return EigenFrequencyDrawable().interpolate_at(q); });
+    // calculate DOS for range of given epsilons
+    DOSes_.resize(epsilons_.size(), 0.0);
+    if (is_tetra_)
+    {
+        std::transform(epsilons_.begin(), epsilons_.end(), DOSes_.begin(), [this] (auto&& eps) {
+            return th_dos_.evaluate_dos_at_value(eps); // in [1/eV/spin/cell]
+        });
+    }
+    else
+    {
+        std::transform(epsilons_.begin(), epsilons_.end(), DOSes_.begin(), [this] (auto&& eps) {
+            return evaluate_dos_at_value<EigenValue>(eps, elec_smearing_, elec_sampling_, eigenens_); // in [1/eV/spin/cell]
+        });
+    }
 
-    elec_sampling_ = elec_sampling;
-    phon_sampling_ = phon_sampling;
-    elec_smearing_ = elec_smearing;
-    phon_smearing_ = phon_smearing;
+    // calculate trDOS for range of given epsilons
+    // explicitly evaluate transport DOS for each of x, y and z components and take average of the three
+    trDOSes_.resize(epsilons_.size(), 0.0);
+    array2D elvelocs_x, elvelocs_y, elvelocs_z;
+    array2D elvelocs_x_sq, elvelocs_y_sq, elvelocs_z_sq;
+    prepare_squared_velocs('x', elvelocs_x, elvelocs_x_sq);
+    prepare_squared_velocs('y', elvelocs_y, elvelocs_y_sq);
+    prepare_squared_velocs('z', elvelocs_z, elvelocs_z_sq);
+    array1D trDOSes_x(epsilons_.size()), trDOSes_y(epsilons_.size()), trDOSes_z(epsilons_.size());
+    if (is_tetra_)
+    {
+        tetrahedra::TetraHandler th_x(transpose(elvelocs_x_sq), transpose(eigenens_));
+        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_x.begin(), [th = std::move(th_x)] (auto&& eps) {
+            return th.evaluate_dos_at_value(eps);
+        });
+        tetrahedra::TetraHandler th_y(transpose(elvelocs_y_sq), transpose(eigenens_));
+        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_y.begin(), [th = std::move(th_y)] (auto&& eps) {
+            return th.evaluate_dos_at_value(eps);
+        });
+        tetrahedra::TetraHandler th_z(transpose(elvelocs_z_sq), transpose(eigenens_));
+        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_z.begin(), [th = std::move(th_z)] (auto&& eps) {
+            return th.evaluate_dos_at_value(eps);
+        });
+    }
+    else // is_tetra
+    {
+        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_x.begin(), [&] (auto&& eps) {
+            return evaluate_trdos_at_value(eps, elec_smearing_, elec_sampling_, eigenens_, elvelocs_x_sq);
+        });
+        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_y.begin(), [&] (auto&& eps) {
+            return evaluate_trdos_at_value(eps, elec_smearing_, elec_sampling_, eigenens_, elvelocs_y_sq);
+        });
+        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_z.begin(), [&] (auto&& eps) {
+            return evaluate_trdos_at_value(eps, elec_smearing_, elec_sampling_, eigenens_, elvelocs_z_sq);
+        });
+    }
+    trDOSes_ = (trDOSes_x + trDOSes_y + trDOSes_z) * (1.0 / 3.0);
+
+    t.stop("\t  Transport spectral function is initialized");
+    int rank{ 0 };
+#ifdef SKIES_MPI
+    rank = mpi::rank();
+#endif
+    if (!rank)
+        std::cout << "\t  Time elapsed: " << t.elapsed() << " ms" << std::endl;
+}
+
+void SpecFunc::prepare_squared_velocs(char cart, array2D& elvelocs, array2D& elvelocs_sq)
+{
+    elvelocs.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
+    elvelocs_sq.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
+    std::transform(PAR kprot_.grid().begin(), kprot_.grid().end(), elvelocs.begin(),
+                [&] (auto&& k) { return Velocities(cart).interpolate_at(k); });
+    std::transform(PAR elvelocs.begin(), elvelocs.end(), elvelocs_sq.begin(),
+            [] (auto&& v) {
+                auto squared_v = array1D(EigenValue::nbands, 0.0);
+                std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto&& x) { return x * x; });
+                return squared_v;
+    });
+}
+
+void SpecFunc::prepare_fsh(const array2D& elvelocs, const array2D& elvelocs_sq, array2D& fsh)
+{
+    std::transform(PAR eigenens_.begin(), eigenens_.end(), elvelocs.begin(), fsh.begin(),
+        [&] (auto&& ee, auto&& vv) {
+            auto fsh_line = array1D(EigenValue::nbands, 0.0);
+            std::transform(ee.begin(), ee.end(), vv.begin(), fsh_line.begin(),
+                [&] (auto&& e, auto&& v) {
+                    auto DOS_nk = evaluate_dos_at_value<EigenValue>(e, elec_smearing_, elec_sampling_, eigenens_); // in [1/eV]
+                    auto trDOS_nk = evaluate_trdos_at_value(e, elec_smearing_, elec_sampling_, eigenens_, elvelocs_sq); // in [Ry^2 * bohr^2 / eV]
+                    return v / std::sqrt(trDOS_nk / DOS_nk); // unitless, v in [Ry * bohr]
+            });
+            return fsh_line;
+    });
+}
+
+void SpecFunc::prepare_fsh(const tetrahedra::TetraHandler& th_dos,
+                           const tetrahedra::TetraHandler& th_trdos,
+                           const array2D& elvelocs,
+                           array2D& fsh)
+{
+    std::transform(PAR eigenens_.begin(), eigenens_.end(), elvelocs.cbegin(), fsh.begin(),
+        [&] (auto&& ee, auto&& vv) {
+            auto fsh_line = array1D(EigenValue::nbands, 0.0);
+            std::transform(ee.begin(), ee.end(), vv.cbegin(), fsh_line.begin(),
+                [&] (auto&& e, auto&& v) {
+                    auto DOS_nk = th_dos.evaluate_dos_at_value(e); // in [1/eV]
+                    auto trDOS_nk = th_trdos.evaluate_dos_at_value(e); // in [Ry^2 * bohr^2 / eV]
+                    return v / std::sqrt(trDOS_nk / DOS_nk); // unitless, v in [Ry * bohr]
+            });
+            return fsh_line;
+    });
 }
 
 SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
@@ -77,40 +223,28 @@ SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
                    double phon_smearing,
                    int sign,
                    double Te,
-                   char cart,
+                   char alpha,
+                   char beta,
                    bool is_tetra
 )
-    : sign_(sign)
+    : kprot_(KPprotocol{kpgrid[0], kpgrid[1], kpgrid[2]})
+    , qprot_(KPprotocol{qpgrid[0], qpgrid[1], qpgrid[2]})
+    , sign_(sign)
     , sign_pr_(sign)
+    , nbnd_(EigenValue::nbands)
+    , nmds_(EigenFrequency::nmodes)
+    , high_band_(nbnd_ - 1)
     , Te_(Te)
-    , cart_(cart)
+    , alpha_(alpha)
+    , beta_(beta)
     , is_tetra_(is_tetra)
 {
-    init(kpgrid, qpgrid, elec_sampling, phon_sampling, elec_smearing, phon_smearing);
     epsilons_.push_back(0);
-
-    launch::Timer t;
-    t.start("========= Started transport DOS calculations...");
-    array2D velocs_squared(nkpt_, array1D(EigenValue::nbands));
-    std::transform(elvelocs_.begin(), elvelocs_.end(), velocs_squared.begin(),
-                    [] (const array1D& v) {
-                        auto squared_v = array1D(EigenValue::nbands, 0.0);
-                        std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto x) { return x * x; });
-                        return squared_v;               
-    });
-    double trDOS{ 0.0 };
-    if (is_tetra_)
-    {
-        KPprotocol kprot(nkx_, nky_, nkz_);
-        trDOS = tetrahedra::evaluate_dos_at_value(velocs_squared, eigenens_, kprot, 0);
-    }
-    else
-        trDOS = evaluate_smeared_trdos_at_value(0, elec_smearing_, elec_sampling_, eigenens_, velocs_squared, Te_);
-    trDOSes_.push_back(trDOS);
-    dump_trdos_file();
-
-    t.stop("========= Transport DOS is evaluated");
-    t.print_elapsed("\t  Transport DOS evaluation time: ");
+    elec_sampling_ = elec_sampling;
+    phon_sampling_ = phon_sampling;
+    elec_smearing_ = elec_smearing;
+    phon_smearing_ = phon_smearing;
+    init();
 }
 
 SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
@@ -123,70 +257,32 @@ SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
                int sign,
                int sign_pr,
                double Te,
-               char cart,
+               char alpha,
+               char beta,
                bool is_tetra
 )
-    : sign_(sign)
+    : kprot_(KPprotocol{kpgrid[0], kpgrid[1], kpgrid[2]})
+    , qprot_(KPprotocol{qpgrid[0], qpgrid[1], qpgrid[2]})
+    , sign_(sign)
     , sign_pr_(sign_pr)
+    , nbnd_(EigenValue::nbands)
+    , nmds_(EigenFrequency::nmodes)
+    , high_band_(nbnd_ - 1)
     , epsilons_(epsilons)
     , Te_(Te)
-    , cart_(cart)
+    , alpha_(alpha)
+    , beta_(beta)
     , is_tetra_(is_tetra)
 {
-    init(kpgrid, qpgrid, elec_sampling, phon_sampling, elec_smearing, phon_smearing);
-    trDOSes_.resize(epsilons_.size(), 0.0);
-// #ifdef SKIES_MPI
-//     auto trDOSes_tmp = array1D(epsilons_.size(), 0.0);
-// #endif
-
-    launch::Timer t;
-    t.start("\t  Started transport DOS calculations...");
-
-    array2D velocs_squared(nkpt_, array1D(EigenValue::nbands));
-    std::transform(elvelocs_.begin(), elvelocs_.end(), velocs_squared.begin(),
-                    [] (const array1D& v) {
-                        auto squared_v = array1D(EigenValue::nbands, 0.0);
-                        std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto x) { return x * x; });
-                        return squared_v;
-    });
-// #ifdef SKIES_MPI
-//     auto rcounts = mpi::prepare_rcounts_displs(epsilons_.size()).first;
-//     auto displs  = mpi::prepare_rcounts_displs(epsilons_.size()).second;
-
-//     int rank = skies::mpi::rank();
-//     for (int i = displs[rank]; i < displs[rank] + rcounts[rank]; ++i)
-//     {
-//         double e = epsilons_[i];
-//         trDOSes_tmp[i] = evaluate_smeared_trdos_at_value(e, elec_smearing_, elec_sampling_, eigenens_, velocs_squared, Te_);
-//     }
-
-//     MPI_Reduce(trDOSes_tmp.data(), trDOSes_.data(), epsilons_.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-//     MPI_Bcast(trDOSes_.data(), epsilons_.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-// #else
-
-    if (is_tetra_)
-    {
-        KPprotocol kprot(nkx_, nky_, nkz_);
-        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_.begin(), [this, &velocs_squared, &kprot] (double v) {
-            return tetrahedra::evaluate_dos_at_value(velocs_squared, eigenens_, kprot, v);
-        });
-    }
-    else
-    {
-        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_.begin(),
-            [this, &velocs_squared] (double e)
-            {
-                auto sm_trDOS = evaluate_smeared_trdos_at_value(e, elec_smearing_, elec_sampling_, eigenens_, velocs_squared, Te_); 
-                return sm_trDOS;
-            });
-    }
-    dump_trdos_file();
-//#endif
-    t.stop("\t  Transport DOS is evaluated. Results are written to VelocitiesDOS.dat");
-    std::cout << "\t  Time elapsed: " << t.elapsed() << " ms" << std::endl;
+    elec_sampling_ = elec_sampling;
+    phon_sampling_ = phon_sampling;
+    elec_smearing_ = elec_smearing;
+    phon_smearing_ = phon_smearing;
+    init();
 }
 
-void SpecFunc::dump_trdos_file()
+
+/*void SpecFunc::dump_trdos_file()
 {
      int rank{ 0 };
 #ifdef SKIES_MPI
@@ -210,7 +306,7 @@ void SpecFunc::dump_trdos_file()
             os << std::setprecision(6) << std::setw(12) << epsilons_[i] << std::setw(34) << trDOSes_[i] << std::endl;
         os.close();
     }
-}
+}*/
 
 SpecFunc::SpecFunc(const std::string& fname)
 {
@@ -223,109 +319,158 @@ SpecFunc::SpecFunc(const std::string& fname)
     if (ifs.fail())
         throw std::runtime_error("The file for continuation does not exist");
 
-    if (ifs.good()) getline(ifs, line);
-    if (ifs.good()) getline(ifs, line);
+    if (ifs.good()) std::getline(ifs, line);
+    if (ifs.good()) std::getline(ifs, line);
     auto splitted_line = custom_split(line, ' ');
 
     auto xnq = splitted_line[3].data();
-    nqx_ = std::stoi(custom_split(xnq, 'x')[0].data());
-    nqy_ = std::stoi(custom_split(xnq, 'x')[1].data());
-    nqz_ = std::stoi(custom_split(xnq, 'x')[2].data());
+    size_t nqx = std::stoi(custom_split(xnq, 'x')[0].data());
+    size_t nqy = std::stoi(custom_split(xnq, 'x')[1].data());
+    size_t nqz = std::stoi(custom_split(xnq, 'x')[2].data());
 
     auto xnk = splitted_line[7].data();
-    nkx_ = std::stoi(custom_split(xnk, 'x')[0].data());
-    nky_ = std::stoi(custom_split(xnk, 'x')[1].data());
-    nkz_ = std::stoi(custom_split(xnk, 'x')[2].data());
+    size_t nkx = std::stoi(custom_split(xnk, 'x')[0].data());
+    size_t nky = std::stoi(custom_split(xnk, 'x')[1].data());
+    size_t nkz = std::stoi(custom_split(xnk, 'x')[2].data());
 
-    if (ifs.good()) getline(ifs, line);
-    nmds_ = std::stod(custom_split(line, ' ')[3].data());
+    if (ifs.good()) std::getline(ifs, line);
+    size_t nmds = std::stoi(custom_split(line, ' ')[3].data());
 
-    if (ifs.good()) getline(ifs, line);
+    if (ifs.good()) std::getline(ifs, line);
+    size_t low_band = std::stoi(custom_split(line, ' ')[1].data());
+
+    if (ifs.good()) std::getline(ifs, line);
+    size_t high_band = std::stoi(custom_split(line, ' ')[1].data());
+
+    if (ifs.good()) std::getline(ifs, line);
+    double Te = std::stod(custom_split(line, ' ')[1].data());
+
+    if (ifs.good()) std::getline(ifs, line);
+    EigenValue::eF = std::stod(custom_split(line, ' ')[2].data());
 
     double elec_smearing{ 1.0 };
-    bzsampling::SamplingFunc elec_sampling;
-    if (ifs.good()) getline(ifs, line);
+    bzsampling::SamplingFunc elec_sampling = [] (double, double) { return 0.0; };
+    if (ifs.good()) std::getline(ifs, line);
     std::string word = custom_split(line, ' ')[2].data();
+    bool is_tetra = false;
     if (word != "tetrahedra")
     {
-        is_tetra_ = false;
+        is_tetra = false;
         elec_sampling = switch_sampling(custom_split(line, ' ')[2].data());
         elec_smearing = std::stod(custom_split(line, ' ')[3].data());
     }
     else
     {
-        is_tetra_ = true;
+        is_tetra = true;
     }
 
     double phon_smearing{ 1.0 };
-    bzsampling::SamplingFunc phon_sampling;
-    if (ifs.good()) getline(ifs, line);
-    word = custom_split(line, ' ')[2].data();
+    bzsampling::SamplingFunc phon_sampling = [] (double, double) { return 0.0; };
+    if (ifs.good()) std::getline(ifs, line);
+    std::string word2 = custom_split(line, ' ')[2].data();
+    if ((word2 == "tetrahedra" && word != "tetrahedra") ||
+        (word2 != "tetrahedra" && word == "tetrahedra"))
+        throw std::runtime_error("Error in continuation file: both samplings must be tetrahedra");
     if (word != "tetrahedra")
     {
-        is_tetra_ = false;
         phon_sampling = switch_sampling(custom_split(line, ' ')[2].data());
         phon_smearing = std::stod(custom_split(line, ' ')[3].data());
     }
-    else
-    {
-        is_tetra_ = true;
-    }
 
-    if (ifs.good()) getline(ifs, line);
-    sign_    = std::stoi(custom_split(line, ' ')[1].data());
+    if (ifs.good()) std::getline(ifs, line);
+    int sign    = std::stoi(custom_split(line, ' ')[1].data());
 
-    if (ifs.good()) getline(ifs, line);
-    sign_pr_ = std::stoi(custom_split(line, ' ')[1].data());
+    if (ifs.good()) std::getline(ifs, line);
+    int sign_pr = std::stoi(custom_split(line, ' ')[1].data());
 
-    if (ifs.good()) getline(ifs, line);
-    cart_ = *custom_split(line, ' ')[2].data();
+    if (ifs.good()) std::getline(ifs, line);
+    char alpha = *custom_split(line, ' ')[3].data();
 
-    if (ifs.good()) getline(ifs, line);
+    if (ifs.good()) std::getline(ifs, line);
+    char beta = *custom_split(line, ' ')[3].data();
+
+    // initialize class fields
+    kprot_ = KPprotocol{nkx, nky, nkz};
+    qprot_ = KPprotocol{nqx, nqy, nqz};
+    sign_ = sign;
+    sign_pr_ = sign_pr;
+    nbnd_ = EigenValue::nbands;
+    nmds_ = nmds;
+    low_band_ = low_band;
+    high_band_ = high_band;
+
+    if (ifs.good()) std::getline(ifs, line);
     auto epsilons_line = custom_split(line, ' ');
     if (epsilons_line.size() < 5)
         throw std::runtime_error("Electron energy list must contain at least one value.");
     for (size_t i = 4; i < epsilons_line.size(); ++i)
         epsilons_.push_back(std::stod(epsilons_line[i]));
 
-    if (ifs.good()) getline(ifs, line);
-    auto transDOSes_line = custom_split(line, ' ');
-    if (transDOSes_line.size() < 5)
-        throw std::runtime_error("Transport DOS list must contain at least one value.");
-    for (size_t i = 4; i < transDOSes_line.size(); ++i)
-        trDOSes_.push_back(std::stod(transDOSes_line[i]) * units::eV_in_Ry);
+    if (ifs.good()) std::getline(ifs, line);
+    auto DOSes_line = custom_split(line, ' ');
+    if (DOSes_line.size() < 5)
+        throw std::runtime_error("DOS list must contain at least one value.");
+    for (size_t i = 4; i < DOSes_line.size(); ++i)
+        DOSes_.push_back(std::stod(DOSes_line[i])); // in file DOSes are given in [1/eV/spin/cell]
 
-    if (ifs.good()) getline(ifs, line);
+    if (ifs.good()) std::getline(ifs, line);
+    auto trDOSes_line = custom_split(line, ' ');
+    if (trDOSes_line.size() < 5)
+        throw std::runtime_error("trDOS list must contain at least one value.");
+    for (size_t i = 4; i < trDOSes_line.size(); ++i)
+        trDOSes_.push_back(std::stod(trDOSes_line[i])); // in file trDOSes are given in [Ry^2 * bohr^2 / eV]
 
-    size_t cnt{0};
-    size_t iq{0}, imd{0};
-    nqpt_ = nqx_ * nqy_ * nqz_;
-    inner_sum_.resize(epsilons_.size(), array2D(nqpt_, array1D(nmds_, 0.0)));
+    if (ifs.good()) std::getline(ifs, line);
+
+    size_t cnt{ 0 };
+    size_t iq{ 0 }, imd{ 0 };
+    inner_sum_.resize(epsilons_.size(), array2D(qprot_.nkpt(), array1D(nmds_, 0.0)));
     while (ifs.good())
     {
-        getline(ifs, line);
-        if (imd == nmds_) { imd = 0; iq++; }
-        if (!line.empty()) {
+        std::getline(ifs, line);
+        if (imd == nmds_)
+        {
+            imd = 0;
+            iq++;
+        }
+        if (!line.empty())
+        {
             for (size_t ieps = 0, s = epsilons_.size(); ieps < s; ++ieps)
                 inner_sum_[ieps][iq][imd] = std::stod(custom_split(line, ' ')[7 + ieps * 2].data());
             cnt++;
             imd++;
         }
     }
-    if (cnt < nqpt_ * nmds_) is_full_ = false;
-    else is_full_ = true;
+    if (cnt < qprot_.nkpt() * nmds_)
+        is_full_ = false;
+    else
+        is_full_ = true;
     iq_cont_  = iq;
     imd_cont_ = imd;
-    if (imd == nmds_) { iq_cont_++; imd_cont_ = 0; }
-    for (size_t ieps = 0, s = epsilons_.size(); ieps < s; ++ieps)
-        inner_sum_[ieps].resize(iq_cont_ + 1);
+    if (imd == nmds_)
+    {
+        iq_cont_++;
+        imd_cont_ = 0;
+    }
 
     ifs.close();
 
-    std::vector<size_t> kpgrid = {nkx_, nky_, nkz_};
-    std::vector<size_t> qpgrid = {nqx_, nqy_, nqz_};
+    Te_ = Te;
+    alpha_ = alpha;
+    beta_  = beta;
+    is_tetra_ = is_tetra;
 
-    init(kpgrid, qpgrid, elec_sampling, phon_sampling, elec_smearing, phon_smearing);
+    // load fsh if needed
+    if (epsilons_.size() > 1)
+    {
+        load_array(std::string{"FSH_"} + std::string{alpha_} + std::string{".dat"}, fsh_alpha_);
+        load_array(std::string{"FSH_"} + std::string{ beta_} + std::string{".dat"},  fsh_beta_);
+    }
+    elec_sampling_ = elec_sampling;
+    phon_sampling_ = phon_sampling;
+    elec_smearing_ = elec_smearing;
+    phon_smearing_ = phon_smearing;
+    init();
 
     is_continue_calc_ = true;
 }
@@ -334,136 +479,214 @@ SpecFunc::~SpecFunc() {}
 
 array1D SpecFunc::calc_spec_func(double Omega)
 {
-    array1D a2f = 0.5 * calc_exter_sum(Omega) * ((is_tetra_) ? (1.0 / nkpt_) : (1.0 / nkpt_ / nqpt_));
+    array1D a2f = 0.5 * calc_exter_sum(Omega) * ((is_tetra_)
+                                              ? (1.0 / kprot_.nkpt())
+                                              : (1.0 / kprot_.nkpt() / qprot_.nkpt()));
     assert(a2f.size() == epsilons_.size());
     for (size_t ieps = 0, s = epsilons_.size(); ieps < s; ++ieps)
-        a2f[ieps] /= ( trDOSes_[ieps] / (is_continue_calc_ ? skies::units::Ry_in_eV : 1) );
-    return a2f;
+        a2f[ieps] /= (epsilons_.size() > 1)
+                   ? DOSes_[ieps] // general: in [1/eV/spin/cell]
+                   : trDOSes_[ieps]; // low-T formulas: in [Ry^2 * bohr^2 / eV]
+    return a2f; // unitless
+    // note about units:
+    // 1) general: [1/eV] / [1/eV] -> unitless
+    // 2) low-T: [eV^2] [bohr*Ry]^2 [1/eV] [1/eV] [1/eV] / [Ry^2 * bohr^2 / eV] -> unitless
 }
 
 // calculates inner sum with fixed q and \nu
 double SpecFunc::calc_inner_sum(size_t iq, size_t imd, size_t ieps)
 {
-#if defined(SKIES_MPI)
-// pure MPI version
-    int rank = mpi::rank();
-    int nproc = mpi::size();
-
-    auto rcounts = std::vector<int>(nproc);
-    auto  displs = std::vector<int>(nproc);
-
-    rcounts = get_rcounts_displs(nkpt_, nproc).first;
-    displs  = get_rcounts_displs(nkpt_, nproc).second;
-
-    int count{ rcounts[rank] };
-    int displ{ displs[rank]  };
-
-    double locInnerSum{ 0.0 };
+    double inner_sum{ 0.0 }; // dos, not divided by nkpt
     if (is_tetra_)
-        locInnerSum = calc_inner_sum_in_subarray_tetra(iq, imd, ieps, displ, displ + count, low_band_, high_band_);
+        inner_sum = calc_inner_sum_in_subarray_tetra(iq, imd, ieps, low_band_, high_band_);
     else
-        locInnerSum = calc_inner_sum_in_subarray(iq, imd, ieps, displ, displ + count, low_band_, high_band_);
-
-    // final sum count
-    double sum_of_sums{0.0};
-    MPI_Reduce(&locInnerSum, &sum_of_sums, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&sum_of_sums, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    inner_sum_[ieps][iq][imd] = sum_of_sums;
-    return sum_of_sums;
-#endif
-// pure serial version
-    double innerSum = calc_inner_sum_in_subarray(iq, imd, ieps, 0, nkpt_, low_band_, high_band_);
-    inner_sum_[ieps][iq][imd] = innerSum;
-    return innerSum;
+        inner_sum = calc_inner_sum_in_subarray(iq, imd, ieps, low_band_, high_band_);
+    inner_sum_[ieps][iq][imd] = inner_sum;
+    return inner_sum;
 }
+
 
 double
 SpecFunc::calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps,
-                                     size_t start, size_t finish,
                                      size_t low_band, size_t high_band)
 {
     assert(low_band <= high_band);
-    double matel2{ 0.0 };
-    double innerSum{ 0.0 };
-    size_t ik{ start };
-    for (; ik < finish; ++ik)
+    auto nbnd = high_band - low_band + 1;
+
+    const array2D& kpts = kprot_.grid(); 
+    const array2D& qpts = qprot_.grid(); 
+
+    return std::transform_reduce(PAR kprot_.range().begin(), kprot_.range().end(), 0.0, std::plus<double>(),
+    [&] (auto&& ik)
     {
-        auto k = kpts_[ik];
-        auto q = qpts_[iq];
+        double inner_sum{ 0.0 };
+        auto k = kpts[ik];
+        auto q = qpts[iq];
         auto qk = k + q;
         auto eps = epsilons_[ieps]; // current electron energy level
 
         // k+q point is handled on the fly
-        auto qkbands = EigenValue::interpolate_at(qk); 
-        auto qkvels  = Velocities(cart_).interpolate_at(qk);
+        auto tmp_qk = EigenValue::interpolate_at(qk);
+        auto elvelocs_qk_alpha = Velocities(alpha_).interpolate_at(qk);
+        auto fsh_qk_alpha = array1D(EigenValue::nbands, 0.0);
+        if (epsilons_.size() > 1)
+            std::transform(tmp_qk.begin(), tmp_qk.end(), elvelocs_qk_alpha.begin(), fsh_qk_alpha.begin(),
+                [&] (auto&& e, auto&& v) {
+                    auto DOS_mqk = evaluate_dos_at_value<EigenValue>(e, elec_smearing_, elec_sampling_, eigenens_);
+                    auto trDOS_mqk = evaluate_trdos_at_value(e, elec_smearing_, elec_sampling_, eigenens_, elvelocs_alpha_sq_);
+                    return v / std::sqrt(trDOS_mqk / DOS_mqk);
+            });
+
+        auto elvelocs_qk_beta = array1D(EigenValue::nbands, 0.0);
+        auto fsh_qk_beta = array1D(EigenValue::nbands, 0.0);
+        if (alpha_ != beta_)
+        {
+            elvelocs_qk_beta = Velocities(beta_).interpolate_at(qk);
+            if (epsilons_.size() > 1)
+                std::transform(tmp_qk.begin(), tmp_qk.end(), elvelocs_qk_beta.begin(), fsh_qk_beta.begin(),
+                    [&] (auto&& e, auto&& v) {
+                        auto DOS_mqk = evaluate_dos_at_value<EigenValue>(e, elec_smearing_, elec_sampling_, eigenens_);
+                        auto trDOS_mqk = evaluate_trdos_at_value(e, elec_smearing_, elec_sampling_, eigenens_, elvelocs_beta_sq_);
+                        return v / std::sqrt(trDOS_mqk / DOS_mqk);
+                });
+        }
+        else
+        {
+            elvelocs_qk_beta = elvelocs_qk_alpha;
+            fsh_qk_beta = fsh_qk_alpha;
+        }
 
         // first loop for quantities at initial k-point and band n
-        for (size_t n = low_band; n < high_band + 1; ++n)
+        for (size_t n = 0; n < nbnd; ++n)
         {
-            // k point is handled beforehand
-            double delta_ekn  = elec_sampling_(eigenens_[ik][n] - eps, elec_smearing_);
-            double vkn  = elvelocs_[ik][n];
+            double delta_ekn = elec_sampling_(eigenens_[ik][n + low_band_] - eps, elec_smearing_);
 
-            // inner loop for quantities at final k+q-point and band m
-            for (size_t m = low_band; m < high_band + 1; ++m)
+            if (epsilons_.size() > 1) // general formulas
             {
-                double delta_eqkm = elec_sampling_(qkbands[m] - eps, elec_smearing_);
-                matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n, m);
-                innerSum += matel2 * (vkn - sign_*qkvels[m])*(vkn - sign_pr_*qkvels[m]) * delta_ekn * delta_eqkm;
+                double fsh_kn_alpha = fsh_alpha_[ik][n + low_band_];
+                double fsh_kn_beta  = fsh_beta_[ik][n + low_band_];
+                for (size_t m = 0; m < nbnd; ++m)
+                {
+                    double delta_eqkm = elec_sampling_(tmp_qk[m + low_band_] - eps, elec_smearing_);
+                    double fsh_qkm_alpha = fsh_qk_alpha[m + low_band_];
+                    double fsh_qkm_beta  = fsh_qk_beta[m + low_band_];
+                    double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
+                    double fsh_factor = (fsh_kn_alpha - sign_*fsh_qkm_alpha)*(fsh_kn_beta - sign_pr_*fsh_qkm_beta);
+                    double delta_factor = delta_ekn * delta_eqkm;
+                    inner_sum += matel2 * fsh_factor * delta_factor;
+                }
+            }
+            else // low-T formulas
+            {
+                double vkn_alpha = elvelocs_alpha_[ik][n + low_band_];
+                double vkn_beta  = elvelocs_beta_[ik][n + low_band_];
+                for (size_t m = 0; m < nbnd; ++m)
+                {
+                    double delta_eqkm = elec_sampling_(tmp_qk[m + low_band_] - eps, elec_smearing_);
+                    double vkqm_alpha = elvelocs_qk_alpha[m + low_band_];
+                    double vkqm_beta  = elvelocs_qk_beta[m + low_band_];
+                    double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
+                    double veloc_factor = (vkn_alpha - sign_*vkqm_alpha)*(vkn_beta - sign_pr_*vkqm_beta);
+                    double delta_factor = delta_ekn * delta_eqkm;
+                    inner_sum += matel2 * veloc_factor * delta_factor;
+                }
             }
         }
-    }
-
-    return innerSum;
+        return inner_sum;
+    });
 }
 
 double
 SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps,
-                                     size_t start, size_t finish,
                                      size_t low_band, size_t high_band)
 {
     // similar to calc_inner_sum_in_subarray, but uses tetrahedron method for BZ sampling
     assert(low_band <= high_band);
-    double matel2{ 0.0 };
-    array3D matels;
     auto nbnd = high_band - low_band + 1;
 
-    size_t ik{ start };
-    array2D eigenens(nkpt_, array1D(nbnd, 0.0));
-    array2D eigenens_qk(nkpt_, array1D(nbnd, 0.0));
-    matels.resize(nbnd, array2D(nbnd, array1D(nkpt_, 0.0)));
-    for (; ik < finish; ++ik)
+    // size_t ik{ 0 };
+    // size_t finish{ kprot_.nkpt() };
+    array2D eigenens(kprot_.nkpt(), array1D(nbnd, 0.0));
+    array2D eigenens_qk(kprot_.nkpt(), array1D(nbnd, 0.0));
+    array3D matels(nbnd, array2D(nbnd, array1D(kprot_.nkpt(), 0.0)));
+    const array2D& kpts = kprot_.grid();
+    const array2D& qpts = qprot_.grid();
+
+    // for (; ik < finish; ++ik)
+    // {
+    std::for_each(PAR kprot_.range().begin(), kprot_.range().end(), [&] (auto&& ik)
     {
-        auto k = kpts_[ik];
-        auto q = qpts_[iq];
+        auto k = kpts[ik];
+        auto q = qpts[iq];
         auto qk = k + q;
         auto tmp_qk = EigenValue::interpolate_at(qk);
-        auto qkvels  = Velocities(cart_).interpolate_at(qk);
-        for (size_t n = low_band; n < high_band + 1; ++n)
-        {
-            eigenens[ik][n - low_band] = eigenens_[ik][n];
-            eigenens_qk[ik][n - low_band] = tmp_qk[n];
-            double vkn  = elvelocs_[ik][n];
 
-            for (size_t m = low_band; m < high_band + 1; ++m)
+        auto elvelocs_qk_alpha = Velocities(alpha_).interpolate_at(qk);
+        auto fsh_qk_alpha = array1D(EigenValue::nbands, 0.0);
+        if (epsilons_.size() > 1)
+            std::transform(tmp_qk.begin(), tmp_qk.end(), elvelocs_qk_alpha.begin(), fsh_qk_alpha.begin(),
+                [&] (auto&& e, auto&& v) {
+                    auto DOS_mqk = th_dos_.evaluate_dos_at_value(e);
+                    auto trDOS_mqk = th_trdos_alpha_.evaluate_dos_at_value(e);
+                    return v / std::sqrt(trDOS_mqk / DOS_mqk);
+            });
+
+        auto elvelocs_qk_beta = array1D(EigenValue::nbands, 0.0);
+        auto fsh_qk_beta = array1D(EigenValue::nbands, 0.0);
+        if (alpha_ != beta_)
+        {
+            elvelocs_qk_beta = Velocities(beta_).interpolate_at(qk);
+            if (epsilons_.size() > 1)
+                std::transform(tmp_qk.begin(), tmp_qk.end(), elvelocs_qk_beta.begin(), fsh_qk_beta.begin(),
+                    [&] (auto&& e, auto&& v) {
+                        auto DOS_mqk = th_dos_.evaluate_dos_at_value(e);
+                        auto trDOS_mqk = th_trdos_alpha_.evaluate_dos_at_value(e);
+                        return v / std::sqrt(trDOS_mqk / DOS_mqk);
+                });
+        }
+        else
+        {
+            elvelocs_qk_beta = elvelocs_qk_alpha;
+            fsh_qk_beta = fsh_qk_alpha;
+        }
+
+        for (size_t n = 0; n < nbnd; ++n)
+        {
+            eigenens[ik][n] = eigenens_[ik][n + low_band_];
+            eigenens_qk[ik][n] = tmp_qk[n + low_band_];
+
+            if (epsilons_.size() > 1) // general formulas
             {
-                double vkqm = qkvels[m];
-                matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n, m);
-                auto veloc_squared = (vkn - sign_*vkqm)*(vkn - sign_pr_*vkqm);
-                matels[n - low_band][m - low_band][ik] = matel2 * veloc_squared;
+                double fsh_kn_alpha = fsh_alpha_[ik][n + low_band_];
+                double fsh_kn_beta  = fsh_beta_[ik][n + low_band_];
+                for (size_t m = 0; m < nbnd; ++m)
+                {
+                    double fsh_qkm_alpha = fsh_qk_alpha[m + low_band_];
+                    double fsh_qkm_beta  = fsh_qk_beta[m + low_band_];
+                    double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
+                    double fsh_factor = (fsh_kn_alpha - sign_*fsh_qkm_alpha)*(fsh_kn_beta - sign_pr_*fsh_qkm_beta);
+                    matels[n][m][ik] = matel2 * fsh_factor;
+                }
+            }
+            else // low-T formulas
+            {
+                double vkn_alpha = elvelocs_alpha_[ik][n + low_band_];
+                double vkn_beta  = elvelocs_beta_[ik][n + low_band_];
+                for (size_t m = 0; m < nbnd; ++m)
+                {
+                    double vkqm_alpha = elvelocs_qk_alpha[m + low_band_];
+                    double vkqm_beta  = elvelocs_qk_beta[m + low_band_];
+                    double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
+                    double veloc_factor = (vkn_alpha - sign_*vkqm_alpha)*(vkn_beta - sign_pr_*vkqm_beta);
+                    matels[n][m][ik] = matel2 * veloc_factor;
+                }
             }
         }
-    }
-#ifdef SKIES_MPI
-    eigenens = mpi::sum_one_from_many(eigenens);
-    eigenens_qk = mpi::sum_one_from_many(eigenens_qk);
-    matels = mpi::sum_one_from_many(matels);
-#endif 
+    });
+    // } // kpts
     auto eps = epsilons_[ieps];
-    KPprotocol kprot(nkx_, nky_, nkz_);
-    double innerSum = tetrahedra::evaluate_dos_at_values(matels, eigenens, eigenens_qk, kprot, start, finish, eps, eps);
-    return innerSum;
+    tetrahedra::DoubleTetraHandler dth(std::move(matels), std::move(eigenens), std::move(eigenens_qk));
+    return dth.evaluate_dos_at_values(eps, eps);
 }
 
 void dump_header_lambda_file(const SpecFunc& a2f, std::ofstream& os)
@@ -473,6 +696,10 @@ void dump_header_lambda_file(const SpecFunc& a2f, std::ofstream& os)
     os << "num. of q-points: "   << a2f.nqx() << "x" << a2f.nqy() << "x" << a2f.nqz()
        << ", num. of k-points: " << a2f.nkx() << "x" << a2f.nky() << "x" << a2f.nkz() << std::endl; 
     os << "num. of modes: " << a2f.nmds() << std::endl;
+
+    os << "low_band: " << a2f.get_low_band() << std::endl;
+    os << "high_band: " << a2f.get_high_band() << std::endl;
+    os << "elec_temp: " << a2f.get_elec_temp() << std::endl;
 
     os << "Fermi level: " << EigenValue::eF << " eV" << std::endl;
 
@@ -490,13 +717,17 @@ void dump_header_lambda_file(const SpecFunc& a2f, std::ofstream& os)
     os << "sign: "    << a2f.sign()    << std::endl;
     os << "sign': " << a2f.sign_pr() << std::endl;
 
-    os << "velocity component: " << a2f.cart() << std::endl;
+    os << "velocity component alpha: " << a2f.alpha() << std::endl;
+    os << "velocity component  beta: " << a2f.beta()  << std::endl;
 
     os << "electron energy list [eV]: ";
     for (auto&& e : a2f.epsilons()) os << e << " ";
     os << std::endl;
-    os << "transport DOS list [r.a.u.]: ";
-    for (auto&& e : a2f.trans_doses()) os << e * skies::units::Ry_in_eV  << " "; // go to [r.a.u.]
+    os << "electronic DOS list [1/eV/spin/cell]: ";
+    for (auto&& e : a2f.doses()) os << e << " ";
+    os << std::endl;
+    os << "transport DOS list [Ry^2*bohr^2/eV]: ";
+    for (auto&& e : a2f.trans_doses()) os << e << " ";
     os << std::endl;
 
     os << std::setw(5) << std::left << "iq" << std::right
@@ -520,7 +751,6 @@ array1D SpecFunc::calc_exter_sum(double Omega)
     rank = mpi::rank();
 #endif
     array1D exterSum(epsilons_.size());
-    KPprotocol qprot(nqx_, nqy_, nqz_);
     if (!is_full_)
     {
         std::ofstream os;
@@ -528,11 +758,13 @@ array1D SpecFunc::calc_exter_sum(double Omega)
         std::string suffix = sign() > 0 ? "_plus.dat" : "_minus.dat";
         fname += suffix; 
 
+        const array2D& qpts = qprot_.grid();
+
         if (is_continue_calc_)
         {
             if (!rank)
                 os.open(fname, std::ios_base::app);
-            inner_sum_.resize(epsilons_.size(), array2D(nqpt_, array1D(nmds_)));
+            inner_sum_.resize(epsilons_.size(), array2D(qprot_.nkpt(), array1D(nmds_)));
         }
         else
         {
@@ -541,14 +773,14 @@ array1D SpecFunc::calc_exter_sum(double Omega)
                 os.open(fname);
                 dump_header_lambda_file(*this, os);
             }
-            inner_sum_.resize(epsilons_.size(), array2D(nqpt_, array1D(nmds_, 0.0)));
+            inner_sum_.resize(epsilons_.size(), array2D(qprot_.nkpt(), array1D(nmds_, 0.0)));
         }
 
-        for (size_t iq = iq_cont_; iq < nqpt_; ++iq) 
+        for (size_t iq = iq_cont_; iq < qprot_.nkpt(); ++iq) 
         {
-            auto modes = EigenFrequency::interpolate_at(qpts_[iq]);
+            auto modes = EigenFrequency::interpolate_at(qpts[iq]); // only main thread here
 
-            size_t imd = is_continue_calc_ ? imd_cont_ : 0;
+            size_t imd = (is_continue_calc_) ? imd_cont_ : 0;
             for (; imd < nmds_; ++imd)
             {
                 if (is_tetra_)
@@ -556,7 +788,7 @@ array1D SpecFunc::calc_exter_sum(double Omega)
                     for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
                     {
                         // just accumulate inner matrix elements inner_sum_{q\nu} for the next use of tetrahedron method
-                        calc_inner_sum(iq, imd, ieps); 
+                        calc_inner_sum(iq, imd, ieps);
                     }
                 }
                 else
@@ -568,13 +800,13 @@ array1D SpecFunc::calc_exter_sum(double Omega)
                 double eigfreq = modes[imd];
                 array1D lambda(epsilons_.size());
                 for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
-                    lambda[ieps] = inner_sum_[ieps][iq][imd] / nkpt_ / trDOSes_[ieps] / eigfreq;
+                    lambda[ieps] = inner_sum_[ieps][iq][imd] / kprot_.nkpt() / trDOSes_[ieps] / eigfreq;
                 if (!rank)
                 {
                     os << std::setw(5) << std::left << iq + 1 << std::right
-                    << std::setw(8) << std::setprecision(3) << qpts_[iq][0]
-                    << std::setw(8) << std::setprecision(3) << qpts_[iq][1]
-                    << std::setw(8) << std::setprecision(3) << qpts_[iq][2]
+                    << std::setw(8) << std::setprecision(3) << qpts[iq][0]
+                    << std::setw(8) << std::setprecision(3) << qpts[iq][1]
+                    << std::setw(8) << std::setprecision(3) << qpts[iq][2]
                     << std::setw(6) << imd + 1
                     << std::setprecision(3) << std::setw(15) << eigfreq;
                     for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps) {
@@ -590,7 +822,7 @@ array1D SpecFunc::calc_exter_sum(double Omega)
         {
             // evaluate for this Omega. At this step matrix elements inner_sum_{q\nu} have been accumulated
             for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
-                exterSum[ieps] = tetrahedra::evaluate_dos_at_value(inner_sum_[ieps], eigenfreqs_, qprot, Omega);
+                exterSum[ieps] = tetrahedra::evaluate_dos(transpose(inner_sum_[ieps]), eigenfreqs_, Omega, true);
         }
         if (!rank)
             os.close();
@@ -602,10 +834,11 @@ array1D SpecFunc::calc_exter_sum(double Omega)
         {
             // here inner matrix elements inner_sum_{q\nu} have been accumulated
             for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
-                exterSum[ieps] = tetrahedra::evaluate_dos_at_value(inner_sum_[ieps], eigenfreqs_, qprot, Omega);
-            return exterSum;
+                exterSum[ieps] = tetrahedra::evaluate_dos(transpose(inner_sum_[ieps]), eigenfreqs_, Omega, true);
+            return exterSum; // already divided by nqpt!
         }
-        for (size_t iq = 0; iq < nqpt_; ++iq)
+        else
+        for (size_t iq = 0; iq < qprot_.nkpt(); ++iq)
         {
             for (size_t imd = 0; imd < nmds_; ++imd)
             {
@@ -616,6 +849,9 @@ array1D SpecFunc::calc_exter_sum(double Omega)
         }
     }
     return exterSum;
+    // note about final units:
+    // 1) general: |g^2| (fx - fx)*(fy - fy) * d(eps)*d(eps)*d(Omega) -> [eV^2] [1] [1] [1/eV] [1/eV] [1/eV] = [1/eV]
+    // 2) low-T: |g^2| (vx - vx)*(vy - vy) * d(eps)*d(eps)*d(Omega) -> [eV^2] [bohr*Ry]^2 [1/eV] [1/eV] [1/eV]
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -645,11 +881,14 @@ void calc_spec_func(SpecFunc& a2f, const array1D& omegas, const std::string& fna
                   "# elec_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.elec_smearing()) + "eV\n"))
                 + "# phon_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.phon_smearing()) + "eV\n"))
                 + "# sign: " + std::to_string(a2f.sign())
-                + "\n# velocity component: " + std::to_string(0)
+                + "\n# velocity component alpha: " + a2f.alpha()
+                + "\n# velocity component beta: " + a2f.beta()
                 + "\n# electron energy list [eV]: " + array1D_to_string(a2f.epsilons())
-                + "\n# transport DOS for energy list [r.a.u.]: "
-                + array1D_to_string(a2f.trans_doses() * ((a2f.is_continue_calc()) ? 1 : skies::units::Ry_in_eV))
-                + "\n\n# frequency [eV]               spectral function\n";
+                + "\n# DOS for energy list [1/eV/spin/cell]: "
+                + array1D_to_string(a2f.doses())
+                + "\n# transport DOS for energy list [Ry^2*bohr^2/eV]: "
+                + array1D_to_string(a2f.trans_doses())
+                + "\n#\n# frequency [eV]               spectral function\n";
         os << header;
     }
 

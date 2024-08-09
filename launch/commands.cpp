@@ -3,7 +3,9 @@
 
 #include <skies/common/alg.h>
 #include <skies/common/units.h>
+#ifdef SKIES_MPI
 #include <skies/utils/mpi_wrapper.h>
+#endif
 #include <skies/common/ndimarrays.h>
 
 #include <skies/quantities/dos.h>
@@ -81,7 +83,7 @@ void exec_cmd(const std::string& cmd,
 #endif
 	if (!resolve_cmd(cmd, args, opts) && !rank)
     {
-        std::string wrong_cmd = "Sorry, command " + cmd + " is not supported. Please, use the --help option";
+        std::string wrong_cmd = "Sorry, command " + cmd + " is not supported. Please, use the help command";
 		throw std::runtime_error(wrong_cmd);
     }
 }
@@ -153,19 +155,20 @@ bool resolve_cmd(const std::string& cmd,
 		bool is_tetra = opts["tetra"] == "true" ? true : false;
 
 		launch::Timer t;
-		t.start("========= Evaluating electron DOS using Wannier interpolation (EPW)...");
+		t.start("========= Evaluating electronic DOS using Wannier interpolation (EPW)...");
         
-		KPprotocol kpts(grid[0], grid[1], grid[2]);
-		array2D weights(kpts.grid.size(), array1D(EigenValue::nbands, 1));
+		KPprotocol kprot(grid[0], grid[1], grid[2]);
+		tetrahedra::TetraHandler::set_kprot(kprot);
+		array2D weights(kprot.nkpt(), array1D(EigenValue::nbands, 1));
 		auto range = arrays::create_range(low_energy, high_energy, bins);
 
 		if (is_tetra)
 		{
-			tetrahedra::evaluate_dos(kpts, range);
+			tetrahedra::evaluate_dos(range);
 		}
 		else
 		{
-        	quantities::evaluate_dos<EigenValueDrawable>(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), weights);
+        	quantities::evaluate_dos<EigenValueDrawable>(kprot.grid(), range, smearing, bzsampling::switch_sampling(sampling), weights);
 		}
 
 		t.stop("========= Electron DOS is evaluated. Results are written to EigenValueDOS.dat");
@@ -215,17 +218,18 @@ bool resolve_cmd(const std::string& cmd,
 
 		launch::Timer t;
 		t.start("========= Evaluating phonon DOS using Wannier interpolation (EPW)...");
-        KPprotocol kpts(grid[0], grid[1], grid[2]);
-        array2D weights(kpts.grid.size(), array1D(EigenFrequency::nmodes, 1));
+        KPprotocol kprot(grid[0], grid[1], grid[2]);
+		tetrahedra::TetraHandler::set_kprot(kprot);
+        array2D weights(kprot.nkpt(), array1D(EigenFrequency::nmodes, 1));
 		auto range = arrays::create_range(low_energy, high_energy, bins);
 
 		if (is_tetra)
 		{
-			tetrahedra::evaluate_phdos(kpts, range);
+			tetrahedra::evaluate_phdos(range);
 		}
 		else
 		{
-        	quantities::evaluate_dos<EigenFrequencyDrawable>(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), weights);
+        	quantities::evaluate_dos<EigenFrequencyDrawable>(kprot.grid(), range, smearing, bzsampling::switch_sampling(sampling), weights);
 		}
 
 		t.stop("========= Phonon DOS is evaluated. Results are written to EigenFrequencyDOS.dat");
@@ -239,15 +243,17 @@ bool resolve_cmd(const std::string& cmd,
 		"  --grid=<[nk1,nk2,nk3]>: Monchorst-Pack grid of k-points (nk1 x nk2 x nk3) in the 1st BZ\n"
 		" Non-mandatory:\n"
 		"  Options can be given in any order. Options include:\n"
+		"  --eF=<num>: Fermi level (in eV). If given energy axis zero will be at given Fermi level\n"
         "  --range=<[low,high]>: electron energy range to bracket, from low to high (in eV, relative to eF). Default is [-2.0,2.0]\n"
         "  --sampling=<str>: type of smearing for delta-functions approximation. Supported values are: 'gs' (gaussians), 'fd' (fermi-dirac derivative). Default value is 'fd'\n"
 		"  --smearing=<sigma>: value of smearing for chosen sampling in eV. Default value is 0.03\n"
         "  --bins=<num>: amount of bins. Default is 100\n"
 		"  --smeared: if given calculates smeared transport DOS. Requires file 'VelocitiesDOS.dat' to be precalculated\n"
 		"  --Te=<num>: used for smeared DOS calculation, defines smearing value in eV. Default is 0.258\n"
-		"  --cart=<x, y or z>: cartesian index of velocities. Default is x\n"
+		// "  --cart=<x, y or z>: cartesian index of velocities. Default is x\n"
 		"  --tetra: if given, use tetrahedron method for BZ sampling\n"
 	) {
+		EigenValue::eF = opts["eF"] == "" ? 0 : std::stod(opts["eF"]);
 		bool is_smeared = opts["smeared"] == "true" ? true : false;
 		double sigma = opts["Te"] == "" ? 0.258 : std::stod(opts["Te"]);
 		if (is_smeared)
@@ -314,22 +320,23 @@ bool resolve_cmd(const std::string& cmd,
         if (opts["bins"] != "")
 		    bins = static_cast<size_t>(stoi(opts["bins"]));
 
-		char cart = opts["cart"] == "" ? 'x' : *opts["cart"].c_str();
+		// char cart = opts["cart"] == "" ? 'x' : *opts["cart"].c_str();
 
 		bool is_tetra = opts["tetra"] == "true" ? true : false;
 
 		launch::Timer t;
 		t.start("========= Evaluating transport DOS using Wannier interpolation (EPW)...");
-		KPprotocol kpts(grid[0], grid[1], grid[2]);
+		KPprotocol kprot(grid[0], grid[1], grid[2]);
+		tetrahedra::TetraHandler::set_kprot(kprot);
 		auto range = arrays::create_range(low_energy, high_energy, bins);
 
 		if (is_tetra)
 		{
-			tetrahedra::evaluate_trdos(kpts, range, cart);
+			tetrahedra::evaluate_trdos(range);
 		}
 		else
 		{
-			quantities::evaluate_trdos(kpts.grid, range, smearing, bzsampling::switch_sampling(sampling), cart);
+			quantities::evaluate_trdos(kprot.grid(), range, smearing, bzsampling::switch_sampling(sampling));
 		}
 
 		t.stop("========= Transport DOS is evaluated. Results are written to VelocitiesDOS.dat");
@@ -571,7 +578,8 @@ bool resolve_cmd(const std::string& cmd,
         "  --omegas=<[low,high]>: phonon frequency range to bracket, from low to high (in meV). Default is [0.0, 50.0]\n"
 		"  --eps_bins=<num>: number of uniformly selected electron energies from given epsilons. Used for integration in elastic formulas. Default value is 30\n"
 		"  --oms_bins=<num>: number of uniformly selected phonon energies from given omegas. Default value is 200\n"
-		"  --cart=<[x, y or z]>: cartesian index of electronic velocities to be used in spectral function calculation. Default is x\n"
+		"  --alpha=<[x, y or z]>: cartesian index of electronic velocities to be used in spectral function calculation. Default is x\n"
+		"  --beta=<[x, y or z]>: cartesian index of electronic velocities to be used in spectral function calculation. Default is x\n"
 		"  --sampling=<str>: type of smearing for delta-functions approximation. Supported values are: 'gs' (gaussians), 'fd' (fermi-dirac derivative). Default value is 'fd'\n"
 		"  --el_smearing=<sigma>: value of electron energies smearing in eV for chosen sampling. Default value is 0.03 eV\n"
 		"  --ph_smearing=<sigma>: value of phonon frequencies smearing in eV for chosen sampling. Default value is 0.0005\n"
@@ -581,26 +589,13 @@ bool resolve_cmd(const std::string& cmd,
         "  --continue: if specified, continue calculation of spectral function. The filename which contains an inerrupted calculation is must have name 'LambdaTr_plus(minus).dat'\n"
 		"  --tetra: if given, use doubly constrained tetrahedron method for BZ sampling\n"
 	) {
-		if (opts["eF"] == "")
-			throw std::runtime_error("a2f command called without Fermi level specification\n");
-		EigenValue::eF = std::stod(opts["eF"]);
-
 		if (opts["sign"] == "")
 			throw std::runtime_error("a2f command called without sign specification\n");
 		int sign = stoi(opts["sign"]);
 
-		size_t low_band{ 0 };
-		size_t high_band{ EigenValue::nbands - 1 };
-		if (opts["bands"] != "")
-		{
-			auto bands = parse_vector_of_numbers<size_t>(opts["bands"], "bands", 2);
-			low_band  = bands[0];
-			high_band = bands[1];
-		}
-
 		std::string	filename = opts["filename"] == ""
-							 ? (sign > 0 ? "SpecFunc_plus.dat" : "SpecFunc_minus.dat")
-							 : opts["filename"];
+						? (sign > 0 ? "SpecFunc_plus.dat" : "SpecFunc_minus.dat")
+						: opts["filename"];
 
 		double low_freq{ 0.0 / 1000.0 };
         double high_freq{ 50.0 / 1000.0 };
@@ -622,8 +617,6 @@ bool resolve_cmd(const std::string& cmd,
 			std::string	cont_filename = sign > 0 ? "LambdaTr_plus.dat" : "LambdaTr_minus.dat";
 
 			auto a2f = SpecFunc(cont_filename);
-			a2f.set_low_band(low_band);
-			a2f.set_high_band(high_band);
 
 			launch::Timer t;
     		t.start("========= Continuation of interrupted spectral function a2F(" + std::to_string(sign)
@@ -634,6 +627,19 @@ bool resolve_cmd(const std::string& cmd,
 			t.print_elapsed("\ta2F evaluation time: ");
 
 			return cmd_found;
+		}
+
+		if (opts["eF"] == "")
+			throw std::runtime_error("a2f command called without Fermi level specification\n");
+		EigenValue::eF = std::stod(opts["eF"]);
+
+		size_t low_band{ 0 };
+		size_t high_band{ EigenValue::nbands - 1 };
+		if (opts["bands"] != "")
+		{
+			auto bands = parse_vector_of_numbers<size_t>(opts["bands"], "bands", 2);
+			low_band  = bands[0];
+			high_band = bands[1];
 		}
 
 		if (opts["kgrid"] == "")
@@ -673,7 +679,8 @@ bool resolve_cmd(const std::string& cmd,
 
 		double Te = opts["Te"] == "" ? 0.258 : stod(opts["Te"]);
 
-		char cart = opts["cart"] == "" ? 'x' : *opts["cart"].c_str();
+		char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
+		char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
 
 		bool is_tetra = opts["tetra"] == "true" ? true : false;
 
@@ -688,7 +695,8 @@ bool resolve_cmd(const std::string& cmd,
 								ph_smearing,
 								sign,
 								Te,
-								cart,
+								alpha,
+								beta,
 								is_tetra
 			);
 			a2f.set_low_band(low_band);
@@ -712,7 +720,8 @@ bool resolve_cmd(const std::string& cmd,
                                 sign,
                                 sign,
 								Te,
-								cart,
+								alpha,
+								beta,
 								is_tetra
             );
 			a2f.set_low_band(low_band);
@@ -734,12 +743,14 @@ bool resolve_cmd(const std::string& cmd,
 		"skies resist [options]:\n"
 		"  Options can be given in any order. Options include:\n"
 		"  Mandatory:\n"
-        "  --range=<[low, high]>: temperature range to calculate electrical resistivity\n"
+        "  --range=<[low, high]>: electronic temperature range to calculate electrical resistivity\n"
 		"  Non-mandatory:\n"
 		"  --bins=<num>: how many temperature values in the given range. Default value is 200\n"
         "  --infile=<str>: the name of the input file which contains transport calculated spectral function. Default filename is 'SpecFunc_plus.dat'\n"
-        "  --outfile=<str>: the name of the output file. Default filename is 'resist.dat'\n"
+        "  --outfile=<str>: the name of the output file. Default filename is 'resist_{alpha}_{beta}.dat, where alpha and beta are cartesian components of velocities'\n"
 		"  --elastic: if given calculates electrical resistivity using elastic formula in Allen's approach. Infile must contain spectral functions at least for 2 electron energies\n"
+		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
+		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
 	) {
 		if (opts["range"] == "")
 			throw std::runtime_error("The range of temperatures is not specified");
@@ -759,11 +770,25 @@ bool resolve_cmd(const std::string& cmd,
 		std::string	a2f_fnm = opts["infile"] == "" ? "SpecFunc_plus.dat" : opts["infile"];
 		std::string	outfile = opts["outfile"] == "" ? "resist.dat" : opts["outfile"];
 
+		array1D ion_Temps;
+		if (opts["iont-range"] != "")
+		{
+			auto iont_range = parse_vector_of_numbers<double>(opts["iont-range"], "iont-range", 2);
+			auto ion_low_temp  = iont_range[0];
+			auto ion_high_temp = iont_range[1];
+			size_t iont_bins = 200;
+        	if (opts["iont-bins"] != "")
+			{
+		    	iont_bins = static_cast<size_t>(stoi(opts["iont-bins"]));
+			}
+			ion_Temps = create_range(ion_low_temp, ion_high_temp, iont_bins);
+		}
+
 		launch::Timer t;
 		t.start("========= Evaluating electrical resistivity...");
 		if (is_elastic)
 		{
-			transport::calc_elec_cond_elastic(Temps, a2f_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
+			transport::calc_elec_cond_elastic(Temps, ion_Temps, a2f_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
 		}
 		else
 		{
@@ -783,8 +808,10 @@ bool resolve_cmd(const std::string& cmd,
 		"  --bins=<num>: how many temperature values in the given range. Default value is 200\n"
         "  --infile-plus=<str>: the name of the input file which contains transport calculated spectral function for +1 sign. Default filename is 'SpecFunc_plus.dat'\n"
         "  --infile-minus=<str>: the name of the input file which contains transport calculated spectral function for -1 sign. Default filename is 'SpecFunc_minus.dat'\n"
-        "  --outfile=<str>: the name of the output file. Default filename is 'thermal-resist.dat'\n"
+        "  --outfile=<str>: the name of the output file. Default filename is 'thermal-'\n"
 		"  --elastic: if given calculates thermal resistivity using elastic formula in Allen's approach. Infile must contain spectral functions at least for 2 electron energies\n"
+		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
+		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
 	) {
 		if (opts["range"] == "")
 			throw std::runtime_error("The range of temperatures is not specified");
@@ -805,11 +832,25 @@ bool resolve_cmd(const std::string& cmd,
 		std::string	a2f_minus_fnm = opts["infile-minus"] == "" ? "SpecFunc_minus.dat" : opts["infile-minus"];
 		std::string	outfile = opts["outfile"] == "" ? "thermal-resist.dat" : opts["outfile"];
 
+		array1D ion_Temps;
+		if (opts["iont-range"] != "")
+		{
+			auto iont_range = parse_vector_of_numbers<double>(opts["iont-range"], "iont-range", 2);
+			auto ion_low_temp  = iont_range[0];
+			auto ion_high_temp = iont_range[1];
+			size_t iont_bins = 200;
+        	if (opts["iont-bins"] != "")
+			{
+		    	iont_bins = static_cast<size_t>(stoi(opts["iont-bins"]));
+			}
+			ion_Temps = create_range(ion_low_temp, ion_high_temp, iont_bins);
+		}
+
 		launch::Timer t;
 		t.start("========= Evaluating thermal conductivity...");
 		if (is_elastic)
 		{
-			transport::calc_therm_cond_elastic(Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
+			transport::calc_therm_cond_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
 		}
 		else
 		{
@@ -830,6 +871,8 @@ bool resolve_cmd(const std::string& cmd,
         "  --infile-plus=<str>: the name of the input file which contains transport calculated spectral function for +1 sign. Default filename is 'SpecFunc_plus.dat'\n"
         "  --infile-minus=<str>: the name of the input file which contains transport calculated spectral function for -1 sign. Default filename is 'SpecFunc_minus.dat'\n"
         "  --outfile=<str>: the name of the output file. Default filename is 'seebeck.dat'\n"
+		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
+		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
 	) {
 		if (opts["range"] == "")
 			throw std::runtime_error("The range of temperatures is not specified");
@@ -848,9 +891,23 @@ bool resolve_cmd(const std::string& cmd,
 		std::string	a2f_minus_fnm = opts["infile-minus"] == "" ? "SpecFunc_minus.dat" : opts["infile-minus"];
 		std::string	outfile = opts["outfile"] == "" ? "seebeck.dat" : opts["outfile"];
 
+		array1D ion_Temps;
+		if (opts["iont-range"] != "")
+		{
+			auto iont_range = parse_vector_of_numbers<double>(opts["iont-range"], "iont-range", 2);
+			auto ion_low_temp  = iont_range[0];
+			auto ion_high_temp = iont_range[1];
+			size_t iont_bins = 200;
+        	if (opts["iont-bins"] != "")
+			{
+		    	iont_bins = static_cast<size_t>(stoi(opts["iont-bins"]));
+			}
+			ion_Temps = create_range(ion_low_temp, ion_high_temp, iont_bins);
+		}
+
 		launch::Timer t;
 		t.start("========= Evaluating Seebeck coefficient...");
-		transport::calc_seebeck_elastic(Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
+		transport::calc_seebeck_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
 		t.stop("========= Seebeck coefficient is evaluated. The results are written to " + outfile);
 		t.print_elapsed("\t  Seebeck coefficient evaluation time: ");
 	} CMD_END;

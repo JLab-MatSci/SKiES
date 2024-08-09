@@ -9,89 +9,151 @@
 #include <skies/quantities/elvelocs.h>
 #include <skies/quantities/eigenfreqs.h>
 
+#ifdef SKIES_MPI
 #include <skies/utils/mpi_wrapper.h>
+#endif
+
+#include <skies/utils/tbb_wrapper.h>
 
 namespace skies { namespace tetrahedra {
 
 using namespace arrays;
 using namespace quantities;
 
-double evaluate_dos_at_value(const array1D& A,
-                    const array1D& energies,
-                    const KPprotocol& kprot,
-                    double value)
-{
-    if ((kprot.nkpt != A.size()) || (kprot.nkpt != energies.size()))
-        throw std::runtime_error("Arrays of matrix elements A_k, energies e_k must contain kprot.nkpt elements");
-    
-    double dos{ 0.0 };
-    TetraHandler th(A, energies, kprot);
-#ifdef SKIES_MPI
-    int  rank = mpi::rank();
-    auto rcounts_displs = mpi::prepare_rcounts_displs(kprot.nkpt);
-    auto rcounts = rcounts_displs.first;
-    auto displs  = rcounts_displs.second;
-    auto count{ rcounts[rank] };
-    auto displ{ displs[rank]  };
+KPprotocol TetraHandler::kprot_;
+KPprotocol TetraHandler::qprot_;
+bool TetraHandler::phon_tag_ = false;
+KPprotocol DoubleTetraHandler::kprot_;
 
-    double dos_part{ 0.0 };
-    for (auto ik = displ; ik < displ + count; ++ik)
-        dos_part += th.evaluate_dos_at(ik, value);
-    MPI_Reduce(&dos_part, &dos, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&dos, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#else
-    for (auto&& ik : kprot.range())
-        dos += th.evaluate_dos_at(ik, value);
-#endif
+TetraHandler::TetraHandler() {}
+
+void TetraHandler::set_kprot(const KPprotocol& kprot)
+{
+    kprot_ = kprot;
+}
+
+void TetraHandler::set_qprot(const KPprotocol& qprot)
+{
+    qprot_ = qprot;
+}
+
+void TetraHandler::set_phon_tag(bool phon_tag)
+{
+    phon_tag_ = phon_tag;
+}
+
+const KPprotocol& TetraHandler::kprot()
+{
+    return kprot_;
+}
+
+const KPprotocol& TetraHandler::qprot()
+{
+    return qprot_;
+}
+
+bool TetraHandler::phon_tag()
+{
+    return phon_tag_;
+}
+
+bool TetraHandler::is_initialized()
+{
+    bool kprot_ok = kprot_.nkpt() > 0;
+    if (!phon_tag_)
+        return kprot_ok;
+    bool qprot_ok = qprot_.nkpt() > 0;
+    return kprot_ok && qprot_ok;
+}
+
+void DoubleTetraHandler::set_kprot(const KPprotocol& kprot)
+{
+    kprot_ = kprot;
+}
+
+const KPprotocol& DoubleTetraHandler::kprot()
+{
+    return kprot_;
+}
+
+bool DoubleTetraHandler::is_initialized()
+{
+    return kprot_.nkpt() > 0;
+}
+
+double evaluate_dos(const array2D& eigenens, double value)
+{
+    assert(TetraHandler::is_initialized());
+    auto grid = TetraHandler::kprot().grid();
+    array2D weights(EigenValueDrawable::nbands, array1D(grid.size(), 1));
+    TetraHandler th(std::move(weights), transpose(eigenens));
+    return th.evaluate_dos_at_value(value);
+}
+
+double evaluate_dos(const array2D& weights,
+                    const array2D& eigenens,
+                    double value,
+                    bool use_qprot)
+{
+    assert(TetraHandler::is_initialized());
+    TetraHandler th(std::move(weights), transpose(eigenens));
+    return th.evaluate_dos_at_value(value, use_qprot);
+}
+
+double TetraHandler::evaluate_dos_at_value(double value, bool use_qprot) const
+{
+    auto ikpts = kprot_.range();
+    double dos = std::transform_reduce(PAR ikpts.begin(), ikpts.end(), 0.0, std::plus<double>(),
+        [&] (auto&& ik) -> double {
+            std::vector<size_t> ibands(A_.size());
+            std::iota(ibands.begin(), ibands.end(), 0);
+            return std::transform_reduce(ibands.begin(), ibands.end(), 0.0, std::plus<double>(),
+                [&] (auto&& n) -> double {
+                    return evaluate_dos_at(ik, n, value, use_qprot);
+            });
+        }
+    );
+    dos /= kprot_.nkpt();
     return dos;
 }
 
-// assumed that A and energies have shape (nkpt x nbnd)
-double evaluate_dos_at_value(const array2D& A,
-                             const array2D& energies,
-                             const KPprotocol& kprot,
-                             double value)
-{
-    if ((kprot.nkpt != A.size()) || (kprot.nkpt != energies.size()))
-        throw std::runtime_error("Arrays of matrix elements A_k, energies e_k must contain kprot.nkpt elements");
-    double dos{ 0.0 };
-    auto AT = transpose(A);
-    auto eT = transpose(energies);
-    for (size_t i = 0; i < AT.size(); ++i)
-        dos += evaluate_dos_at_value(AT[i], eT[i], kprot, value);
-    dos /= kprot.nkpt;
-    return dos;
-}
-
-void evaluate_dos(const KPprotocol& kprot,
-                  const arrays::array1D& range)
+void evaluate_dos(const arrays::array1D& range)
 {
     std::ofstream os("EigenValueDOS.dat");
     os << std::right;
     os << std::setw(12) << "# Energy, eV";
     os << std::setw(25) << "EigenValue DOS";
-    os << std::setw(9) << " [1 / eV]";
+    os << std::setw(9) << " [1/eV/spin/cell]";
     os << std::endl;
 
-    auto grid = kprot.grid;
+    assert(TetraHandler::is_initialized());
+    auto grid = TetraHandler::kprot().grid();
     auto nkpt = grid.size();
-    array2D weights(nkpt, array1D(EigenValueDrawable::nbands, 1));
+    array2D weights(EigenValueDrawable::nbands, array1D(nkpt, 1));
     array2D energies(nkpt, array1D(EigenValueDrawable::nbands, 0.0));
-    std::transform(grid.begin(), grid.end(), energies.begin(),
-                    [] (auto&& k) { return EigenValueDrawable().interpolate_at(k); });
-
-    array1D dos(range.size(), 0.0);
-    std::transform(range.begin(), range.end(), dos.begin(), [&] (double v) {
-        return evaluate_dos_at_value(weights, energies, kprot, v);
+    std::transform(grid.begin(), grid.end(), energies.begin(),  [] (auto&& k) {
+        return EigenValueDrawable().interpolate_at(k);
     });
 
-    for (size_t i = 0; i < range.size(); ++i)
-        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
-    os.close();
+    array1D dos(range.size(), 0.0);
+    TetraHandler th(std::move(weights), transpose(energies));
+    std::transform(range.begin(), range.end(), dos.begin(), [&] (double v) {
+        return th.evaluate_dos_at_value(v);
+    });
+
+    int rank{ 0 };
+#ifdef SKIES_MPI
+    rank = skies::mpi::rank();
+#endif
+    if (!rank)
+    {
+        for (size_t i = 0; i < range.size(); ++i)
+            os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
+        os.close();
+    }
 }
 
-void evaluate_phdos(const KPprotocol& kprot,
-                    const arrays::array1D& range)
+void evaluate_phdos(const arrays::array1D& range)
 {
     std::ofstream os("EigenFrequencyDOS.dat");
     os << std::right;
@@ -100,74 +162,106 @@ void evaluate_phdos(const KPprotocol& kprot,
     os << std::setw(9) << " [1 / eV]";
     os << std::endl;
 
-    auto grid = kprot.grid;
+    assert(TetraHandler::is_initialized());
+    auto grid = TetraHandler::kprot().grid();
     auto nkpt = grid.size();
-    array2D weights(nkpt, array1D(EigenFrequencyDrawable::nmodes, 1));
+    array2D weights(EigenFrequencyDrawable::nmodes, array1D(nkpt, 1));
     array2D energies(nkpt, array1D(EigenFrequencyDrawable::nmodes, 0.0));
-    std::transform(grid.begin(), grid.end(), energies.begin(),
-                    [] (auto&& k) { return EigenFrequencyDrawable().interpolate_at(k); });
-
-    array1D dos(range.size(), 0.0);
-    std::transform(range.begin(), range.end(), dos.begin(), [&] (double v) {
-        return evaluate_dos_at_value(weights, energies, kprot, v);
+    std::transform(grid.begin(), grid.end(), energies.begin(), [] (auto&& k) {
+        return EigenFrequencyDrawable().interpolate_at(k); // CAUTION! threads
     });
 
-    for (size_t i = 0; i < range.size(); ++i)
-        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
-    os.close();
+    array1D dos(range.size(), 0.0);
+    TetraHandler th(std::move(weights), transpose(energies));
+    std::transform(range.begin(), range.end(), dos.begin(), [&] (double v) {
+        return th.evaluate_dos_at_value(v);
+    });
+
+    int rank{ 0 };
+#ifdef SKIES_MPI
+    rank = skies::mpi::rank();
+#endif
+    if (!rank)
+    {
+        for (size_t i = 0; i < range.size(); ++i)
+            os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
+        os.close();
+    }
 }
 
-void evaluate_trdos(const KPprotocol& kprot,
-                    const arrays::array1D& range,
-                    char cart)
+void evaluate_trdos(const arrays::array1D& range)
 {
     std::ofstream os("VelocitiesDOS.dat");
     os << std::right;
     os << std::setw(12) << "# Energy, eV";
     os << std::setw(25) << "Transport DOS";
-    os << std::setw(24) << " [13.605685 * Ry bohr^2]";
+    os << std::setw(24) << " [r.a.u.]";
     os << std::endl;
 
-    auto grid = kprot.grid;
+    assert(TetraHandler::is_initialized());
+    auto grid = TetraHandler::kprot().grid();
     auto nkpt = grid.size();
-    array2D eigenvals(nkpt, array1D(EigenValue::nbands, 0.0));
-    array2D velocs(nkpt, array1D(EigenValue::nbands, 0.0));
-    array2D velocs_squared(nkpt, array1D(EigenValue::nbands, 0.0));
-
-    std::transform(grid.begin(), grid.end(), eigenvals.begin(),
-                [] (auto&& k) { return EigenValue::interpolate_at(k); });
-    std::transform(grid.begin(), grid.end(), velocs.begin(),
-                [cart] (auto&& k) { return VelocitiesDrawable(cart).interpolate_at(k); });
-    std::transform(velocs.begin(), velocs.end(), velocs_squared.begin(),
-                    [] (const array1D& v) {
-                        auto squared_v = array1D(EigenValue::nbands, 0.0);
-                        std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto x) { return x * x; });
-                        return squared_v;
+    array2D eigenens(nkpt, array1D(EigenValue::nbands, 0.0));
+    std::transform(PAR grid.begin(), grid.end(), eigenens.begin(), [] (auto&& k) {
+        return EigenValue::interpolate_at(k);
     });
 
-    array1D trDOSes(range.size(), 0.0);
-    std::transform(range.begin(), range.end(), trDOSes.begin(), [&] (double v) {
-        return evaluate_dos_at_value(velocs_squared, eigenvals, kprot, v);
-    });
+    auto prepare_velocs = [&] (char cart, array2D& elvelocs, array2D& elvelocs_sq) {
+        elvelocs.resize(nkpt, array1D(EigenValue::nbands, 0.0));
+        elvelocs_sq.resize(nkpt, array1D(EigenValue::nbands, 0.0));
+        std::transform(PAR grid.begin(), grid.end(), elvelocs.begin(),
+                    [&] (auto&& k) { return Velocities(cart).interpolate_at(k); });
+        std::transform(PAR elvelocs.begin(), elvelocs.end(), elvelocs_sq.begin(),
+                [] (auto&& v) {
+                    auto squared_v = array1D(EigenValue::nbands, 0.0);
+                    std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto&& x) { return x * x; });
+                    return squared_v;
+        });
+    };
 
-    for (size_t i = 0; i < range.size(); ++i)
-        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << trDOSes[i] << std::endl;
-    os.close();
+    array2D elvelocs_x, elvelocs_y, elvelocs_z;
+    array2D elvelocs_x_sq, elvelocs_y_sq, elvelocs_z_sq;
+    prepare_velocs('x', elvelocs_x, elvelocs_x_sq);
+    prepare_velocs('y', elvelocs_y, elvelocs_y_sq);
+    prepare_velocs('z', elvelocs_z, elvelocs_z_sq);
+
+    array1D trDOSes(range.size());
+    array1D trDOSes_x(range.size()), trDOSes_y(range.size()), trDOSes_z(range.size());
+
+    tetrahedra::TetraHandler th_x(transpose(elvelocs_x_sq), transpose(eigenens));
+    std::transform(range.begin(), range.end(), trDOSes_x.begin(), [th = std::move(th_x)] (auto&& eps) {
+        return th.evaluate_dos_at_value(eps);
+    });
+    tetrahedra::TetraHandler th_y(transpose(elvelocs_y_sq), transpose(eigenens));
+    std::transform(range.begin(), range.end(), trDOSes_y.begin(), [th = std::move(th_y)] (auto&& eps) {
+        return th.evaluate_dos_at_value(eps);
+    });
+    tetrahedra::TetraHandler th_z(transpose(elvelocs_z_sq), transpose(eigenens));
+    std::transform(range.begin(), range.end(), trDOSes_z.begin(), [th = std::move(th_z)] (auto&& eps) {
+        return th.evaluate_dos_at_value(eps);
+    });
+    trDOSes = (trDOSes_x + trDOSes_y + trDOSes_z) * (1.0 / 3.0);
+    trDOSes = trDOSes * units::Ry_in_eV; // go to [r.a.u.]
+
+    int rank{ 0 };
+#ifdef SKIES_MPI
+    rank = skies::mpi::rank();
+#endif
+    if (!rank)
+    {
+        for (size_t i = 0; i < range.size(); ++i)
+            os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << trDOSes[i] << std::endl;
+        os.close();
+    }
 }
 
-// it is assumed that energies and matrix elements are precalculated
-// on a grid in kprot and A[0] corresponds to 0th k-point
-TetraHandler::TetraHandler(const array1D& A,
-                           const array1D& energies,
-                           const KPprotocol& kprot)
-    : A_(A)
-    , energies_(energies)
-    , kprot_(kprot)
-    {}
-
-double TetraHandler::evaluate_dos_at(size_t ik, double value) const
+double TetraHandler::evaluate_dos_at(size_t ik, size_t n, double value, bool use_qprot) const
 {
-    auto subcell = kprot_.local_subcell(ik);
+    std::vector<size_t> subcell;
+    if (use_qprot)
+        subcell = qprot_.local_subcell(ik); // global index ik
+    else
+        subcell = kprot_.local_subcell(ik); // global index ik
     auto tetrahedra = create_tetrahedra(subcell);
     assert(tetrahedra.size() == 6);
     double dos{ 0.0 };
@@ -176,13 +270,13 @@ double TetraHandler::evaluate_dos_at(size_t ik, double value) const
         // c - array of 4 elements according to (B1) - (B4) from
         // Lambin P., Vigneron J. P. // Physical Review B. 1984. V.29. N.6. P.3430.
         array1D c(4, 0.0);
-        array1D local_energies, local_matels;
-        for (auto&& i : t)
+        array1D local_energies(4, 0.0), local_matels(4, 0.0);
+        for (size_t i = 0; i < 4; ++i)
         {
-            local_matels.push_back(A_[i]);
-            local_energies.push_back(energies_[i]);
+            auto iik = t[i]; // global index iik!
+            local_matels[i] = A_[n][iik];
+            local_energies[i] = energies_[n][iik];
         }
-        assert(local_matels.size() == 4 && local_energies.size() == 4);
         std::sort(local_energies.begin(), local_energies.end());
 
         auto E1 = local_energies[0];
@@ -275,43 +369,26 @@ double TetraHandler::evaluate_dos_at(size_t ik, double value) const
     return dos;
 }
 
-double evaluate_dos_at_values(const array1D& A_glob,
-                    const array1D& epsilons_glob,
-                    const array1D& omegas_glob,
-                    const KPprotocol& kprot,
-                    size_t start,
-                    size_t finish,
-                    double E,
-                    double O)
+double DoubleTetraHandler::evaluate_dos_at_values(double E, double O) const
 {
-    double dos{ 0.0 };
-    DoubleTetraHandler dth(A_glob, epsilons_glob, omegas_glob, kprot);
-    for (size_t ik = start; ik < finish; ++ik)
-        dos += dth.evaluate_dos_at(ik, E, O);
-    return dos;
-}
-
-// here it is assumed that shape of A is (nbnd x nbnd x nkpt)
-// but espilons/omegas have shape (nkpt x nbnd) 
-double evaluate_dos_at_values(const array3D& A_glob,
-                              const array2D& epsilons_glob,
-                              const array2D& omegas_glob,
-                              const KPprotocol& kprot,
-                              size_t start,
-                              size_t finish,
-                              double E,
-                              double O)
-{
-    if ((kprot.nkpt != A_glob[0][0].size()) || (kprot.nkpt != epsilons_glob.size()) || (kprot.nkpt != omegas_glob.size()))
-        throw std::runtime_error("Arrays of matrix elements A_k, epsilons e_k and omegas om_k must contain kprot.nkpt elements");
-    double dos{ 0.0 };
-    auto nmax = A_glob.size();
-    auto mmax = A_glob[0].size();
-    auto eTg = transpose(epsilons_glob);
-    auto oTg = transpose(omegas_glob);
-    for (size_t n = 0; n < nmax ; ++n)
-        for (size_t m = 0; m < mmax; ++m)
-            dos += evaluate_dos_at_values(A_glob[n][m], eTg[n], oTg[m], kprot, start, finish, E, O);
+    auto nmax = A_glob_.size();
+    auto mmax = A_glob_[0].size();
+    auto ikpts = kprot_.range();
+    double dos = std::transform_reduce(PAR ikpts.begin(), ikpts.end(), 0.0, std::plus<double>(),
+        [&] (auto&& ik) -> double {
+            std::vector<size_t> ibands(nmax);
+            std::iota(ibands.begin(), ibands.end(), 0);
+            return std::transform_reduce(ibands.begin(), ibands.end(), 0.0, std::plus<double>(),
+                [&] (auto&& n) -> double {
+                    std::vector<size_t> jbands(mmax);
+                    std::iota(jbands.begin(), jbands.end(), 0);
+                    return std::transform_reduce(jbands.begin(), jbands.end(), 0.0, std::plus<double>(),
+                        [&] (auto&& m) -> double {
+                            return evaluate_dos_at(ik, n, m, E, O);
+                    });
+            });
+        }
+    );
     return dos;
 }
 
@@ -341,15 +418,16 @@ DoubleTetraHandler::create_tetrahedra(const std::vector<size_t>& sc) const
     return tetra;
 }
 
-DoubleTetraHandler::DoubleTetraHandler(const array1D& A_glob,
-                                       const array1D& epsilons_glob,
-                                       const array1D& omegas_glob,
-                                       const KPprotocol& kprot)
-    : A_glob_(A_glob)
-    , epsilons_glob_(epsilons_glob)
-    , omegas_glob_(omegas_glob)
-    , kprot_(kprot)
-{}
+DoubleTetraHandler::DoubleTetraHandler(array3D&& A_glob,
+                                       array2D&& epsilons_glob,
+                                       array2D&& omegas_glob)
+    : A_glob_(std::move(A_glob))
+    , epsilons_glob_(std::move(epsilons_glob))
+    , omegas_glob_(std::move(omegas_glob))
+{
+    if ((kprot_.nkpt() != A_glob_[0][0].size()) || (kprot_.nkpt() != epsilons_glob_.size()) || (kprot_.nkpt() != omegas_glob_.size()))
+        throw std::runtime_error("Arrays of matrix elements A_k, epsilons e_k and omegas om_k must contain kprot.nkpt elements");
+}
 
 double DoubleTetraHandler::evaluate_integral_0(double EE, const array1D& E,
                            double OO, const array1D& O,
@@ -512,7 +590,7 @@ double DoubleTetraHandler::evaluate_integral_3(double EE, const array1D& E,
     return 6.0 * f * g * midpoint;
 }
 
-double DoubleTetraHandler::evaluate_dos_at(size_t ik, double E, double O) const
+double DoubleTetraHandler::evaluate_dos_at(size_t ik, size_t n, size_t m, double E, double O) const
 {
     auto subcell = kprot_.local_subcell(ik); // global index ik!
     auto tetrahedra = create_tetrahedra(subcell);
@@ -520,14 +598,14 @@ double DoubleTetraHandler::evaluate_dos_at(size_t ik, double E, double O) const
     double dos{ 0.0 };
     for (auto&& t : tetrahedra)
     {
-        array1D local_epsilons, local_omegas, local_matels;
-        for (auto&& i : t) // global index i!
+        array1D local_epsilons(4, 0.0), local_omegas(4, 0.0), local_matels(4, 0.0);
+        for (size_t i = 0; i < 4; ++i)
         {
-            local_matels.push_back(A_glob_[i]);
-            local_omegas.push_back(omegas_glob_[i]);
-            local_epsilons.push_back(epsilons_glob_[i]);
+            auto&& iik = t[i]; // global index iik!
+            local_matels[i] = A_glob_[n][m][iik];
+            local_omegas[i] = omegas_glob_[iik][m];
+            local_epsilons[i] = epsilons_glob_[iik][n];
         }
-        assert((local_matels.size() == 4) && (local_epsilons.size() == 4) && (local_omegas.size() == 4));
         std::sort(local_omegas.begin(), local_omegas.end());
 
         auto O0 = local_omegas[0];

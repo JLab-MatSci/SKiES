@@ -38,9 +38,24 @@ endif()
 ####====================================================####
 
 option(SKIES_ENABLE_MPI                     "MPI support"  ON)
+option(SKIES_ENABLE_TBB            "Parallel TBB version" OFF)
 option(SKIES_ENABLE_DOC                   "Generate docs" OFF)
 option(SKIES_ENABLE_TEST                  "Tests support" OFF)
 option(SKIES_ENABLE_EXAMPLES           "Install examples" OFF)
+
+# if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+#     option(SKIES_ENABLE_ASAN   "Build with address sanitizer" OFF)
+#     if (SKIES_ENABLE_ASAN)
+#         add_compile_options(-fsanitize=address)
+#         add_link_options(-fsanitize=address)
+#     endif()
+
+#     option(SKIES_ENABLE_TSAN    "Build with thread sanitizer" OFF)
+#     if (SKIES_ENABLE_TSAN)
+#         add_compile_options(-fsanitize=thread)
+#         add_link_options(-fsanitize=thread)
+#     endif()
+# endif()
 
 find_package(Mbd REQUIRED)
 find_package(qe REQUIRED)
@@ -49,6 +64,12 @@ if (SKIES_ENABLE_MPI)
     find_package(MPI REQUIRED)
     include_directories(SYSTEM ${MPI_INCLUDE_PATH})
     add_definitions(-DSKIES_MPI)
+endif()
+
+# add TBB library to use C++17 parallelization facilities
+if (SKIES_ENABLE_TBB)
+    find_package(TBB REQUIRED)
+    add_definitions(-DSKIES_TBB)
 endif()
 
 if (SKIES_ENABLE_DOC)

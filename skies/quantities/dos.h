@@ -7,7 +7,10 @@
 
 #include <fstream>
 
+#ifdef SKIES_MPI
 #include <skies/utils/mpi_wrapper.h>
+#endif
+#include <skies/utils/tbb_wrapper.h>
 #include <skies/quantities/eigenfreqs.h>
 #include <skies/quantities/elvelocs.h>
 #include <skies/lattices/kp_protocol.h>
@@ -60,12 +63,20 @@ double evaluate_dos_at_value(double value,
 {
     auto nkpt = values.size();
     auto nbnd = values[0].size();
-    double res{ 0.0 };
-    for (size_t ikpt = 0; ikpt < nkpt; ++ikpt)
-        for (size_t ibnd = 0; ibnd < nbnd; ++ibnd)
-            res += weights[ikpt][ibnd] * sampling(value - values[ikpt][ibnd], smearing);
-    res /= nkpt; // needed by definition of DOS
-    return res;
+    std::vector<size_t> ikpts(nkpt);
+    std::iota(ikpts.begin(), ikpts.end(), 0);
+    double dos = std::transform_reduce(PAR ikpts.begin(), ikpts.end(), 0.0, std::plus<double>(),
+        [&] (auto&& ik) -> double {
+            std::vector<size_t> ibands(nbnd);
+            std::iota(ibands.begin(), ibands.end(), 0);
+            return std::transform_reduce(ibands.begin(), ibands.end(), 0.0, std::plus<double>(),
+                [&] (auto&& n) -> double {
+                    return weights[ik][n] * sampling(value - values[ik][n], smearing);
+            });
+        }
+    );
+    dos /= nkpt;
+    return dos;
 }
 
 /**
@@ -83,19 +94,26 @@ double evaluate_dos_at_value(double value,
 {
     auto nkpt = values.size();
     auto nbnd = values[0].size();
-    double res{ 0.0 };
-    for (size_t ikpt = 0; ikpt < nkpt; ++ikpt)
-        for (size_t ibnd = 0; ibnd < nbnd; ++ibnd)
-            res += sampling(value - values[ikpt][ibnd], smearing);
-    res /= nkpt; // needed by definition of DOS
-    return res;
+    std::vector<size_t> ikpts(nkpt);
+    std::iota(ikpts.begin(), ikpts.end(), 0);
+    double dos = std::transform_reduce(PAR ikpts.begin(), ikpts.end(), 0.0, std::plus<double>(),
+        [&] (auto&& ik) -> double {
+            std::vector<size_t> ibands(nbnd);
+            std::iota(ibands.begin(), ibands.end(), 0);
+            return std::transform_reduce(ibands.begin(), ibands.end(), 0.0, std::plus<double>(),
+                [&] (auto&& n) -> double {
+                    return sampling(value - values[ik][n], smearing);
+            });
+        }
+    );
+    dos /= nkpt;
+    return dos;
 }
 
 void evaluate_trdos(const arrays::array2D& grid,
                     const arrays::array1D& range,
                     double smearing,
-                    bzsampling::SamplingFunc sampl_type,
-                    char cart);
+                    bzsampling::SamplingFunc sampl_type);
 
 /**
  * \brief Evaluates DOS in a given energy range. The quantity of interest is provided as a template parameter.
@@ -127,26 +145,19 @@ void evaluate_dos(const arrays::array2D& grid,
 	    					    : EigenValue::nbands;
     arrays::array2D values;
     values.resize(nkpt, arrays::array1D(nbnd));
-    std::transform(grid.begin(), grid.end(), values.begin(),
-                        [] (const arrays::array1D& k) { return Quan().interpolate_at(k); });
+    std::transform(PAR grid.begin(), grid.end(), values.begin(), [] (auto&& k) {
+        return Quan().interpolate_at(k);
+    });
 
-    int rank{ 0 };
     arrays::array1D DOSes(range.size(), 0.0);
     arrays::array1D DOSes_tmp(range.size(), 0.0);
-#ifdef SKIES_MPI
-    auto rcounts = mpi::prepare_rcounts_displs(range.size()).first;
-    auto displs  = mpi::prepare_rcounts_displs(range.size()).second;
-
-    rank = skies::mpi::rank();
-    for (int i = displs[rank]; i < displs[rank] + rcounts[rank]; ++i)
-        DOSes_tmp[i] = evaluate_dos_at_value<Quan>(range[i], smearing, sampl_type, values);
-
-    MPI_Reduce(DOSes_tmp.data(), DOSes.data(), range.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Bcast(DOSes.data(), range.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#else
-    std::transform(range.begin(), range.end(), DOSes.begin(), [] (double v) {
-        return evaluate_dos_at_value<Quan>(v, smearing, sampl_type, values);
+    std::transform(range.begin(), range.end(), DOSes.begin(), [&] (double v) {
+        return evaluate_dos_at_value<Quan>(v, smearing, sampl_type, values, weights);
     });
+
+    int rank{ 0 };
+#ifdef SKIES_MPI
+    rank = skies::mpi::rank();
 #endif
     if (!rank)
     {

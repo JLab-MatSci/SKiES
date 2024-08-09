@@ -4,6 +4,8 @@
 #include <skies/common/units.h>
 #include <skies/transport/iohandler.h>
 
+#include <iomanip>
+
 #include <iostream>
 
 namespace skies { namespace transport {
@@ -28,9 +30,21 @@ IHandler::IHandler(const char* a2f_fnm)
         {
             getline(ifs_, line);
             if (line.find("elec_smearing:") != std::string::npos)
-                elec_smearing_ = std::strtod(custom_split(line, ' ')[2].data(), 0);
+            {
+                std::string word_or_num = custom_split(line, ' ')[2].data();
+                if (word_or_num == "tetrahedra")
+                    elec_smearing_ = 0.0;
+                else
+                    elec_smearing_ = std::stod(word_or_num);
+            }
             if (line.find("phon_smearing:") != std::string::npos)
-                phon_smearing_ = std::strtod(custom_split(line, ' ')[2].data(), 0);
+            {
+                std::string word_or_num = custom_split(line, ' ')[2].data();
+                if (word_or_num == "tetrahedra")
+                    phon_smearing_ = 0.0;
+                else
+                    phon_smearing_ = std::stod(word_or_num);
+            }
             if (line.find("velocity") != std::string::npos)
                 cartes_ind_ = std::strtod(custom_split(line, ' ').back().data(), 0);
             if (line.find("electron") != std::string::npos)
@@ -66,38 +80,94 @@ IHandler::~IHandler()
     ifs_.close();
 }
 
-OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type)
+OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, const array1D& ion_Temps)
     : ofs_(cond_fnm)
+    , ion_Temps_(ion_Temps)
 {
     IHandler ihandler(a2f_fnm);
+    bool is_tetra = (ihandler.elec_smearing() == 0);
     switch (type)
     {
     case  ResistType::Electrical:
-        ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
-        ofs_ << "#  phon_smearing: " << ihandler.phon_smearing() << " [eV]" << std::endl;
-        ofs_ << "#  velocity component: " << ihandler.cartes_ind() << std::endl;
+        if (is_tetra)
+        {
+            ofs_ << "#  elec_smearing: " << "tetrahedra" << std::endl;
+            ofs_ << "#  phon_smearing: " << "tetrahedra" << std::endl;
+        }
+        else
+        {
+            ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
+            ofs_ << "#  phon_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
+        }
         ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
         ofs_ << "\n#" << std::endl;
-        ofs_ << "#  Temperature [K]           Resistivity [muOm cm]" << std::endl;
-        break; 
+        if (ion_Temps_.empty())
+        {
+            ofs_ << std::left << "Te [K]" << std::setw(30) << "        Resistivity [muOm cm]" << std::endl;
+        }
+        else
+        {
+            ofs_ << "# Resistivity [muOm cm]" << std::endl;
+            ofs_ << "#  Te [K]  \\  Ti [K]:";
+            for (auto&& Ti : ion_Temps_)
+                ofs_ << std::setprecision(1) << std::setw(12) << Ti;
+            ofs_ << std::endl;
+        }
+        break;
 
     case ResistType::Thermal:
-        ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " eV" << std::endl;
-        ofs_ << "#  phon_smearing: " << ihandler.phon_smearing() << " eV" << std::endl;
-        ofs_ << "#  velocity component: " << ihandler.cartes_ind() << std::endl;
+        if (is_tetra)
+        {
+            ofs_ << "#  elec_smearing: " << "tetrahedra" << std::endl;
+            ofs_ << "#  phon_smearing: " << "tetrahedra" << std::endl;
+        }
+        else
+        {
+            ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
+            ofs_ << "#  phon_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
+        }
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
         ofs_ << "\n#" << std::endl;
-        ofs_ << "#  Temperature [K]           Thermal Resistivity [W/cm/K]" << std::endl;
+        if (ion_Temps_.empty())
+        {
+            ofs_ << "Te [K]" << std::setw(35) << "       Thermal Resistivity [W/cm/K]" << std::endl;
+        }
+        else
+        {
+            ofs_ << "# Thermal Resistivity [W/cm/K]" << std::endl;
+            ofs_ << "#  Te [K]  \\  Ti [K]:";
+            for (auto&& Ti : ion_Temps_)
+                ofs_ << std::setw(12) << Ti;
+            ofs_ << std::endl;
+        }
         break;
 
     case ResistType::Seebeck:
-        ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " eV" << std::endl;
-        ofs_ << "#  phon_smearing: " << ihandler.phon_smearing() << " eV" << std::endl;
-        ofs_ << "#  velocity component: " << ihandler.cartes_ind() << std::endl;
+        if (is_tetra)
+        {
+            ofs_ << "#  elec_smearing: " << "tetrahedra" << std::endl;
+            ofs_ << "#  phon_smearing: " << "tetrahedra" << std::endl;
+        }
+        else
+        {
+            ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
+            ofs_ << "#  phon_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
+        }
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
         ofs_ << "\n#" << std::endl;
-        ofs_ << "#  Temperature [K]           Seebeck coefficient [muV/K]" << std::endl;
+        if (ion_Temps_.empty())
+        {
+            ofs_ << "Te [K]"<< std::setw(35) << "       Seebeck coefficient [muV/K]" << std::endl;
+        }
+        else
+        {
+            ofs_ << "# Seebeck coefficient [muV/K]" << std::endl;
+            ofs_ << "#  Te [K]  \\  Ti [K]:";
+            for (auto&& Ti : ion_Temps_)
+                ofs_ << std::setw(12) << Ti;
+            ofs_ << std::endl;
+        }
         break;
 
     default:
@@ -112,8 +182,30 @@ OHandler::~OHandler()
 
 void OHandler::dump(const arrays::array1D& Temps, const arrays::array1D& resist)
 {
+    assert(resist.size() == Temps.size());
     for (size_t itemp = 0; itemp < Temps.size(); ++itemp)
-        ofs_ << Temps[itemp] << "    " << resist[itemp] << std::endl;
+            ofs_ << std::setprecision(6) << std::setw(14) << Temps[itemp]
+                 << std::setprecision(6) << std::setw(14) << resist[itemp] << std::endl;
+}
+
+void OHandler::dump(const arrays::array1D& Temps, const arrays::array2D& resist)
+{
+    assert(resist.size() == Temps.size());
+    assert(resist[0].size() == ion_Temps_.size());
+    if (ion_Temps_.empty())
+        for (size_t itemp = 0; itemp < Temps.size(); ++itemp)
+            ofs_ << std::setprecision(6) << std::setw(14) << Temps[itemp]
+                 << std::setprecision(6) << std::setw(14) << resist[itemp][0] << std::endl;
+    else
+    {
+        for (size_t itemp = 0; itemp < Temps.size(); ++itemp)
+        {
+            ofs_ << std::setw(12) << std::setprecision(6) << Temps[itemp];
+            for (size_t jtemp = 0; jtemp < ion_Temps_.size(); ++jtemp)
+                ofs_ << std::setw(12) << std::setprecision(6) << resist[itemp][jtemp];
+            ofs_ << std::endl;
+        }
+    }
 }
 
 } // transport

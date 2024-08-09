@@ -7,10 +7,11 @@
 
 #include <vector>
 #include <cassert>
+#include <fstream>
 #include <algorithm>
 #include <stdexcept>
 
-#include <iostream>
+#include <skies/common/alg.h>
 
 namespace skies { namespace arrays {
 
@@ -125,6 +126,28 @@ std::vector<T> operator* (const std::vector<T>& v, T val) {
 */
 template <typename T>
 std::vector<T> operator* (T val, const std::vector<T>& v) {
+    return v * val;
+}
+
+/**
+ * \brief Multiplies a 2D-vector by a number
+ * @param v 2D-vector
+ * @param val number multiply to
+ * @result another 2D-vector equal v * val
+*/
+template <typename T>
+std::vector<std::vector<T>> operator* (const std::vector<std::vector<T>>& v, T val) {
+    std::vector<std::vector<T>> res;
+    for (auto&& l : v)
+        res.push_back(l * val);
+    return res;
+}
+
+/**
+ * \brief The same as above
+*/
+template <typename T>
+std::vector<std::vector<T>> operator* (T val, const std::vector<std::vector<T>>& v) {
     return v * val;
 }
 
@@ -271,6 +294,44 @@ reshape(const std::vector<T>& v, size_t n1, size_t n2, size_t n3)
         mat3d[i1] = reshape<T>(v_part, n2, n3);
     }
     return mat3d;
+}
+
+inline void dump_array(const std::string& filename, const array2D& array, const char sep = ' ')
+{
+    std::ofstream ofs{filename};
+    for (auto&& line : array)
+    {
+        for (auto&& v : line)
+        {
+            ofs << v << sep;
+        }
+        ofs << std::endl;
+    }
+    ofs.close();
+}
+
+inline void load_array(const std::string& filename, array2D& array, const char sep = ' ')
+{
+    assert(array.empty());
+    std::ifstream ifs{filename};
+    std::string line_str;
+
+    auto parse_line = [&sep] (const std::string& line_str, array1D& line_arr) {
+        for (auto&& v : custom_split(line_str, sep))
+            line_arr.push_back(std::stod(v));
+    };
+
+    while (ifs.good())
+    {
+        std::getline(ifs, line_str);
+        if (!line_str.empty())
+        {
+            array1D line_arr;
+            parse_line(line_str, line_arr);
+            array.push_back(line_arr);
+        }
+    }
+    ifs.close();
 }
 
 } // arrays

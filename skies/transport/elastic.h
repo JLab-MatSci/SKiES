@@ -23,12 +23,12 @@ using innerIntegCalculator = std::function<double(int sign, double Te, double om
 */
 double calc_inner_integral_elec_elastic(int sign, double Te, double omega, const arrays::array1D& epsilons,
                                    const arrays::array1D& transDOSes, const arrays::array1D& a2f);
-void calc_elec_cond_elastic(const arrays::array1D& Temps, const char* a2f_fnm, const char* cond_fnm, double unit_cell_vol);
-void calc_therm_cond_elastic(const arrays::array1D& Temps, const char* a2f_plus_fnm, const char* a2f_minus_fnm, const char* cond_fnm, double unit_cell_vol);
-void calc_seebeck_elastic(const arrays::array1D& Temps, const char* a2f_plus_fnm, const char* a2f_minus_fnm, const char* cond_fnm, double unit_cell_vol);
+void calc_elec_cond_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps, const char* a2f_fnm, const char* cond_fnm, double unit_cell_vol);
+void calc_therm_cond_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps, const char* a2f_plus_fnm, const char* a2f_minus_fnm, const char* cond_fnm, double unit_cell_vol);
+void calc_seebeck_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps, const char* a2f_plus_fnm, const char* a2f_minus_fnm, const char* cond_fnm, double unit_cell_vol);
 
 // small helper function for inverting Q-matrix
-static arrays::array2D calc_inv_2d(const arrays::array2D& w)
+inline arrays::array2D calc_inv_2d(const arrays::array2D& w)
 {
     if (w.size() != 2)
         throw std::runtime_error("Matrix 2x2 is needed");

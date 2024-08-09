@@ -33,8 +33,7 @@ using array4D_c = std::vector<array3D_c>;
 using array5D_c = std::vector<array4D_c>;
 
 
-class EPHMatrixDrawable : public AnyQuantity
-{
+class EPHMatrixDrawable : public AnyQuantity {
 public:
     arrays::array1D k = {0.0, 0.0, 0.0}; // usually everyone uses Gamma here
 

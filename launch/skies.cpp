@@ -6,7 +6,9 @@
 #include <launch/parser.h>
 #include <launch/commands.h>
 
+#ifdef SKIES_MPI
 #include <skies/utils/mpi_wrapper.h>
+#endif
 #include <skies/quantities/eigenvals.h>
 #include <skies/lattices/latt_protocol.h>
 
@@ -38,9 +40,14 @@ void print_name()
 void print_numproc(int nproc)
 {
 #ifdef SKIES_MPI
-	std::cout << "Parallel MPI version. Launched on " << nproc  << " processors" << std::endl;
+	std::cout << "Parallel MPI version. Launched on " << nproc  << " processors" << std::endl << std::endl;
 #else
-	std::cout << "Serial version launched" << std::endl << std::endl;
+	std::cout << "Serial MPI version launched" << std::endl << std::endl;
+#endif
+#ifdef SKIES_TBB
+	std::cout << "TBB version launched" << std::endl << std::endl;
+#else
+	std::cout << "No TBB version launched" << std::endl << std::endl;
 #endif
 }
 
