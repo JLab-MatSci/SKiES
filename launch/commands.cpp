@@ -59,6 +59,11 @@ std::vector<T> parse_vector_of_numbers(const std::string& opts, const std::strin
 		throw std::runtime_error(error);
 
 	std::vector<T> args;
+	if (std::is_same_v<int, std::remove_reference_t<T>>)
+	{
+		for (size_t i = 0; i < argc; ++i)
+			args.push_back(std::stoi(splitted_line[i].data()));
+	}
 	if (std::is_same_v<size_t, std::remove_reference_t<T>>)
 	{
 		for (size_t i = 0; i < argc; ++i)
@@ -570,34 +575,53 @@ bool resolve_cmd(const std::string& cmd,
 		"  Options can be given in any order. Options include:\n"
 		"  Mandatory:\n"
 		"  --eF=<num>: Fermi level\n"
-		"  --sign=<1 or -1>: sign in the a2f formula brackets which contain Fermi surface harmonics\n"
+		"  --signs=[s,s']: signs in the a2f formula brackets which contain Fermi surface harmonics\n"
         "  --kgrid=<[nk1,nk2,nk3]>: Monchorst-Pack grid of k-points (nk1 x nk2 x nk3) in the 1st BZ\n"
         "  --qgrid=<[nk1,nk2,nk3]>: Monchorst-Pack grid of k-points (nk1 x nk2 x nk3) in the 1st BZ\n"
 		"  Non-mandatory:\n"
         "  --epsilons=<[low,high]>: electron energy range to bracket, from low to high (in eV relative to Fermi level). Default is [-0.5,0.5]\n"
-        "  --omegas=<[low,high]>: phonon frequency range to bracket, from low to high (in meV). Default is [0.0, 50.0]\n"
+        "  --omegas=<[low,high]>: phonon frequency range to bracket, from low to high (in meV). Default is [0.1, 50.0]\n"
 		"  --eps_bins=<num>: number of uniformly selected electron energies from given epsilons. Used for integration in elastic formulas. Default value is 30\n"
 		"  --oms_bins=<num>: number of uniformly selected phonon energies from given omegas. Default value is 200\n"
-		"  --alpha=<[x, y or z]>: cartesian index of electronic velocities to be used in spectral function calculation. Default is x\n"
-		"  --beta=<[x, y or z]>: cartesian index of electronic velocities to be used in spectral function calculation. Default is x\n"
+		"  --alpha=<x, y or z>: cartesian index of electronic velocities to be used in spectral function calculation. Default is x\n"
+		"  --beta=<x, y or z>: cartesian index of electronic velocities to be used in spectral function calculation. Default is x\n"
 		"  --sampling=<str>: type of smearing for delta-functions approximation. Supported values are: 'gs' (gaussians), 'fd' (fermi-dirac derivative). Default value is 'fd'\n"
 		"  --el_smearing=<sigma>: value of electron energies smearing in eV for chosen sampling. Default value is 0.03 eV\n"
 		"  --ph_smearing=<sigma>: value of phonon frequencies smearing in eV for chosen sampling. Default value is 0.0005\n"
 		"  --bands=<[low,high]>: range of band numbers (starting from 0) to consider in a2F calculation\n. Default is [0, nbnd - 1], where nbnd is total number of bands\n"
 		"  --Te=<num>: electronic temperature in eV to smear transport DOS. Default value is 0.258\n"
-        "  --filename=<str>: the name of the output file. Default filename is 'SpecFunc_plus(minus).dat'\n"
-        "  --continue: if specified, continue calculation of spectral function. The filename which contains an inerrupted calculation is must have name 'LambdaTr_plus(minus).dat'\n"
+        //"  --filename=<str>: the name of the output file. Default filename is 'SpecFunc_pp_xx.dat'\n"
+        "  --continue: if specified, continue calculation of spectral function. The filename which contains an inerrupted calculation is must have name 'LambdaTr_ss'_{alpha}_{beta}.dat'\n"
 		"  --tetra: if given, use doubly constrained tetrahedron method for BZ sampling\n"
 	) {
-		if (opts["sign"] == "")
-			throw std::runtime_error("a2f command called without sign specification\n");
-		int sign = stoi(opts["sign"]);
+		if (opts["signs"] == "")
+			throw std::runtime_error("a2f command called without signs specification\n");
+		std::cout << "0\n";
+		auto signs = parse_vector_of_numbers<int>(opts["signs"], "signs", 2);
+		int sign    = signs[0];
+		int sign_pr = signs[1];
 
-		std::string	filename = opts["filename"] == ""
-						? (sign > 0 ? "SpecFunc_plus.dat" : "SpecFunc_minus.dat")
-						: opts["filename"];
+		std::cout << "1\n";
 
-		double low_freq{ 0.0 / 1000.0 };
+		if ((std::abs(sign) != 1) || (std::abs(sign_pr) != 1))
+			throw std::runtime_error("signs must take values of +1 or -1\n");
+
+		char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
+		char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
+
+		std::string filename = "SpecFunc_";
+		if (sign > 0)    filename += std::string{'p'};
+		else		     filename += std::string{'m'};
+		if (sign_pr > 0) filename += std::string{'p'};
+		else		     filename += std::string{'m'};
+		filename += std::string{'_'};
+		filename += std::string{alpha};
+		filename += std::string{beta};
+		filename += std::string{".dat"};
+
+		std::cout << filename << std::endl;
+
+		double low_freq{ 0.1 / 1000.0 };
         double high_freq{ 50.0 / 1000.0 };
 		if (opts["omegas"] != "")
         {
@@ -614,16 +638,23 @@ bool resolve_cmd(const std::string& cmd,
 		bool is_continue = opts["continue"] == "true" ? true : false;
 		if (is_continue)
 		{
-			std::string	cont_filename = sign > 0 ? "LambdaTr_plus.dat" : "LambdaTr_minus.dat";
+			std::string cont_filename = "LambdaTr_";
+			if (sign > 0)    filename += std::string{'p'};
+			else		     filename += std::string{'m'};
+			if (sign_pr > 0) filename += std::string{'p'};
+			else		     filename += std::string{'m'};
+			filename += std::string{'_'};
+			filename += std::string{alpha};
+			filename += std::string{beta};
+			filename += std::string{".dat"};
 
 			auto a2f = SpecFunc(cont_filename);
 
 			launch::Timer t;
-    		t.start("========= Continuation of interrupted spectral function a2F(" + std::to_string(sign)
-			      + ") calculation... See file " + cont_filename + " for details\n");
+    		t.start("========= Continuation of interrupted spectral function a2F calculation... See file " + cont_filename + " for details\n");
 			calc_spec_func(a2f, omegas, filename);
 
-			t.stop("========= Transport spectral function a2F(" + std::to_string(sign) + ") is evaluated. The results are written to" + filename);
+			t.stop("========= Transport spectral function a2F is evaluated. The results are written to " + filename);
 			t.print_elapsed("\ta2F evaluation time: ");
 
 			return cmd_found;
@@ -679,9 +710,6 @@ bool resolve_cmd(const std::string& cmd,
 
 		double Te = opts["Te"] == "" ? 0.258 : stod(opts["Te"]);
 
-		char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
-		char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
-
 		bool is_tetra = opts["tetra"] == "true" ? true : false;
 
 		launch::Timer t;
@@ -694,6 +722,7 @@ bool resolve_cmd(const std::string& cmd,
 								el_smearing,
 								ph_smearing,
 								sign,
+								sign_pr,
 								Te,
 								alpha,
 								beta,
@@ -705,7 +734,7 @@ bool resolve_cmd(const std::string& cmd,
 			a2f.set_type_of_el_smear(sampling_str);
 			a2f.set_type_of_ph_smear(sampling_str);
 
-    		t.start("========= Evaluating transport spectral function a2F(" + std::to_string(sign) + ")...");
+    		t.start("========= Evaluating transport spectral function a2F...");
 			calc_spec_func(a2f, omegas, filename);
 		}
 		else
@@ -718,7 +747,7 @@ bool resolve_cmd(const std::string& cmd,
 								el_smearing,
 								ph_smearing,
                                 sign,
-                                sign,
+                                sign_pr,
 								Te,
 								alpha,
 								beta,
@@ -730,11 +759,11 @@ bool resolve_cmd(const std::string& cmd,
 			a2f.set_type_of_el_smear(sampling_str);
 			a2f.set_type_of_ph_smear(sampling_str);
 
-			t.start("========= Evaluating transport spectral function a2F(" + std::to_string(sign) + ")...");
+			t.start("========= Evaluating transport spectral function a2F...");
 			calc_spec_func(a2f, omegas, filename);
 		}
 
-		t.stop("========= Transport spectral function a2F(" + std::to_string(sign) + ") is evaluated. The results are written to" + filename);
+		t.stop("========= Transport spectral function a2F is evaluated. The results are written to " + filename);
 		t.print_elapsed("\ta2F evaluation time: ");
 	} CMD_END;
 
@@ -746,11 +775,13 @@ bool resolve_cmd(const std::string& cmd,
         "  --range=<[low, high]>: electronic temperature range to calculate electrical resistivity\n"
 		"  Non-mandatory:\n"
 		"  --bins=<num>: how many temperature values in the given range. Default value is 200\n"
-        "  --infile=<str>: the name of the input file which contains transport calculated spectral function. Default filename is 'SpecFunc_plus.dat'\n"
-        "  --outfile=<str>: the name of the output file. Default filename is 'resist_{alpha}_{beta}.dat, where alpha and beta are cartesian components of velocities'\n"
+        //"  --infile=<str>: the name of the input file which contains transport calculated spectral function. Default filename is 'SpecFunc_plus.dat'\n"
+        //"  --outfile=<str>: the name of the output file. Default filename is 'resist_{alpha}_{beta}.dat, where alpha and beta are cartesian components of velocities'\n"
 		"  --elastic: if given calculates electrical resistivity using elastic formula in Allen's approach. Infile must contain spectral functions at least for 2 electron energies\n"
 		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
 		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
+		"  --alpha=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
+		"  --beta=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
 	) {
 		if (opts["range"] == "")
 			throw std::runtime_error("The range of temperatures is not specified");
@@ -767,8 +798,17 @@ bool resolve_cmd(const std::string& cmd,
 
 		bool is_elastic = opts["elastic"] == "true" ? true : false;
 
-		std::string	a2f_fnm = opts["infile"] == "" ? "SpecFunc_plus.dat" : opts["infile"];
-		std::string	outfile = opts["outfile"] == "" ? "resist.dat" : opts["outfile"];
+		char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
+		char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
+		std::string	a2f_fnm = "SpecFunc_pp_";
+		a2f_fnm += std::string{alpha};
+		a2f_fnm += std::string{beta};
+		a2f_fnm += std::string{".dat"};
+
+		std::string	outfile = "Resist_";
+		outfile += std::string{alpha};
+		outfile += std::string{beta};
+		outfile += std::string{".dat"};
 
 		array1D ion_Temps;
 		if (opts["iont-range"] != "")
@@ -806,12 +846,14 @@ bool resolve_cmd(const std::string& cmd,
         "  --range=<[low, high]>: temperature range to calculate thermal resistivity (in K)\n"
 		"  Non-mandatory:\n"
 		"  --bins=<num>: how many temperature values in the given range. Default value is 200\n"
-        "  --infile-plus=<str>: the name of the input file which contains transport calculated spectral function for +1 sign. Default filename is 'SpecFunc_plus.dat'\n"
-        "  --infile-minus=<str>: the name of the input file which contains transport calculated spectral function for -1 sign. Default filename is 'SpecFunc_minus.dat'\n"
-        "  --outfile=<str>: the name of the output file. Default filename is 'thermal-'\n"
+        //"  --infile-plus=<str>: the name of the input file which contains transport calculated spectral function for +1 sign. Default filename is 'SpecFunc_plus.dat'\n"
+        //"  --infile-minus=<str>: the name of the input file which contains transport calculated spectral function for -1 sign. Default filename is 'SpecFunc_minus.dat'\n"
+        //"  --outfile=<str>: the name of the output file. Default filename is 'thermal-'\n"
 		"  --elastic: if given calculates thermal resistivity using elastic formula in Allen's approach. Infile must contain spectral functions at least for 2 electron energies\n"
 		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
 		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
+		"  --alpha=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
+		"  --beta=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
 	) {
 		if (opts["range"] == "")
 			throw std::runtime_error("The range of temperatures is not specified");
@@ -828,9 +870,23 @@ bool resolve_cmd(const std::string& cmd,
 
 		bool is_elastic = opts["elastic"] == "true" ? true : false;
 
-		std::string	a2f_plus_fnm = opts["infile-plus"] == "" ? "SpecFunc_plus.dat" : opts["infile-plus"];
-		std::string	a2f_minus_fnm = opts["infile-minus"] == "" ? "SpecFunc_minus.dat" : opts["infile-minus"];
-		std::string	outfile = opts["outfile"] == "" ? "thermal-resist.dat" : opts["outfile"];
+		char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
+		char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
+
+		std::string	a2f_plus_fnm = "SpecFunc_pp_";
+		a2f_plus_fnm += std::string{alpha};
+		a2f_plus_fnm += std::string{beta};
+		a2f_plus_fnm += std::string{".dat"};
+
+		std::string	a2f_minus_fnm = "SpecFunc_mm_";
+		a2f_minus_fnm += std::string{alpha};
+		a2f_minus_fnm += std::string{beta};
+		a2f_minus_fnm += std::string{".dat"};
+
+		std::string	outfile = "ThermalResist_";
+		outfile += std::string{alpha};
+		outfile += std::string{beta};
+		outfile += std::string{".dat"};
 
 		array1D ion_Temps;
 		if (opts["iont-range"] != "")
@@ -846,15 +902,35 @@ bool resolve_cmd(const std::string& cmd,
 			ion_Temps = create_range(ion_low_temp, ion_high_temp, iont_bins);
 		}
 
+		bool add_odd = opts["add_odd"] == "true" ? true : false;
+		std::string	a2f_pm_fnm;
+		std::string	a2f_mp_fnm;
+		assert(a2f_pm_fnm.c_str() == nullptr);
+		assert(a2f_mp_fnm.c_str() == nullptr);
+		if (add_odd)
+		{
+			a2f_pm_fnm = "SpecFunc_pm_";
+			a2f_pm_fnm += std::string{alpha};
+			a2f_pm_fnm += std::string{beta};
+			a2f_pm_fnm += std::string{".dat"};
+
+			a2f_mp_fnm = "SpecFunc_mp_";
+			a2f_mp_fnm += std::string{alpha};
+			a2f_mp_fnm += std::string{beta};
+			a2f_mp_fnm += std::string{".dat"};
+		}
+
 		launch::Timer t;
 		t.start("========= Evaluating thermal conductivity...");
 		if (is_elastic)
 		{
-			transport::calc_therm_cond_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
+			transport::calc_therm_cond_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(),
+				outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm.c_str(), a2f_mp_fnm.c_str());
 		}
 		else
 		{
-			transport::calc_therm_cond_inelastic(Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
+			transport::calc_therm_cond_inelastic(Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(),
+				outfile.c_str(), skies::Lattprotocol::latt_volume);
 		}
 		t.stop("========= Thermal conductivity is evaluated. The results are written to " + outfile);
 		t.print_elapsed("\tThermal conductivity evaluation time: ");
@@ -868,11 +944,14 @@ bool resolve_cmd(const std::string& cmd,
         "  --range=<[low,high]>: temperature range to calculate thermal resistivity (in K)\n"
 		"  Non-mandatory:\n"
 		"  --bins=<num>: how many temperature values in the given range. Default value is 200\n"
-        "  --infile-plus=<str>: the name of the input file which contains transport calculated spectral function for +1 sign. Default filename is 'SpecFunc_plus.dat'\n"
-        "  --infile-minus=<str>: the name of the input file which contains transport calculated spectral function for -1 sign. Default filename is 'SpecFunc_minus.dat'\n"
-        "  --outfile=<str>: the name of the output file. Default filename is 'seebeck.dat'\n"
+        //"  --infile-plus=<str>: the name of the input file which contains transport calculated spectral function for +1 sign. Default filename is 'SpecFunc_plus.dat'\n"
+        //"  --infile-minus=<str>: the name of the input file which contains transport calculated spectral function for -1 sign. Default filename is 'SpecFunc_minus.dat'\n"
+        //"  --outfile=<str>: the name of the output file. Default filename is 'seebeck.dat'\n"
 		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
 		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
+		"  --alpha=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
+		"  --beta=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
+		"  --add_odd: if given add odd transport specral function corrections\n"
 	) {
 		if (opts["range"] == "")
 			throw std::runtime_error("The range of temperatures is not specified");
@@ -887,9 +966,23 @@ bool resolve_cmd(const std::string& cmd,
 
 		auto Temps = create_range(low_temp, high_temp, bins);
 
-		std::string	a2f_plus_fnm = opts["infile-plus"] == "" ? "SpecFunc_plus.dat" : opts["infile-plus"];
-		std::string	a2f_minus_fnm = opts["infile-minus"] == "" ? "SpecFunc_minus.dat" : opts["infile-minus"];
-		std::string	outfile = opts["outfile"] == "" ? "seebeck.dat" : opts["outfile"];
+		char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
+		char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
+
+		std::string	a2f_plus_fnm = "SpecFunc_pp_";
+		a2f_plus_fnm += std::string{alpha};
+		a2f_plus_fnm += std::string{beta};
+		a2f_plus_fnm += std::string{".dat"};
+
+		std::string	a2f_minus_fnm = "SpecFunc_mm_";
+		a2f_minus_fnm += std::string{alpha};
+		a2f_minus_fnm += std::string{beta};
+		a2f_minus_fnm += std::string{".dat"};
+
+		std::string	outfile = "Seebeck_";
+		outfile += std::string{alpha};
+		outfile += std::string{beta};
+		outfile += std::string{".dat"};
 
 		array1D ion_Temps;
 		if (opts["iont-range"] != "")
@@ -905,9 +998,29 @@ bool resolve_cmd(const std::string& cmd,
 			ion_Temps = create_range(ion_low_temp, ion_high_temp, iont_bins);
 		}
 
+		bool add_odd = opts["add_odd"] == "true" ? true : false;
+		std::string	a2f_pm_fnm;
+		std::string	a2f_mp_fnm;
+		assert(a2f_pm_fnm.c_str() == nullptr);
+		assert(a2f_mp_fnm.c_str() == nullptr);
+		if (add_odd)
+		{
+			a2f_pm_fnm = "SpecFunc_pm_";
+			a2f_pm_fnm += std::string{alpha};
+			a2f_pm_fnm += std::string{beta};
+			a2f_pm_fnm += std::string{".dat"};
+
+			a2f_mp_fnm = "SpecFunc_mp_";
+			a2f_mp_fnm += std::string{alpha};
+			a2f_mp_fnm += std::string{beta};
+			a2f_mp_fnm += std::string{".dat"};
+		}
 		launch::Timer t;
 		t.start("========= Evaluating Seebeck coefficient...");
-		transport::calc_seebeck_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
+
+		transport::calc_seebeck_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(),
+			outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm.c_str(), a2f_mp_fnm.c_str());
+
 		t.stop("========= Seebeck coefficient is evaluated. The results are written to " + outfile);
 		t.print_elapsed("\t  Seebeck coefficient evaluation time: ");
 	} CMD_END;

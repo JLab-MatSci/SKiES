@@ -42,6 +42,7 @@ double calc_inner_integral_inelastic(double TeV, const array1D& freqs, const arr
 
 void calc_elec_cond_inelastic(const array1D& Temps, const char* a2f_fnm, const char* cond_fnm, double unit_cell_vol)
 {
+    std::cout << a2f_fnm << std::endl;
     IHandler ihandler(a2f_fnm);
     if (ihandler.epsilons().size() > 1)
         throw std::runtime_error("There must be just Fermi level in inelastic formulas.");

@@ -222,6 +222,7 @@ SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
                    double elec_smearing,
                    double phon_smearing,
                    int sign,
+                   int sign_pr,
                    double Te,
                    char alpha,
                    char beta,
@@ -230,7 +231,7 @@ SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
     : kprot_(KPprotocol{kpgrid[0], kpgrid[1], kpgrid[2]})
     , qprot_(KPprotocol{qpgrid[0], qpgrid[1], qpgrid[2]})
     , sign_(sign)
-    , sign_pr_(sign)
+    , sign_pr_(sign_pr)
     , nbnd_(EigenValue::nbands)
     , nmds_(EigenFrequency::nmodes)
     , high_band_(nbnd_ - 1)
@@ -312,9 +313,6 @@ SpecFunc::SpecFunc(const std::string& fname)
 {
     std::ifstream ifs(fname);
     std::string line;
-
-    if (fname != "LambdaTr_plus.dat" && fname != "LambdaTr_minus.dat")
-        throw std::runtime_error("To continue an interrupted calculation 'LambdaTr_plus(minus).dat' file must be in the working dir");
 
     if (ifs.fail())
         throw std::runtime_error("The file for continuation does not exist");
@@ -691,46 +689,46 @@ SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps,
 
 void dump_header_lambda_file(const SpecFunc& a2f, std::ofstream& os)
 {
-    os << "Mode-resolved transport coupling strength" << std::endl;
+    os << "# Mode-resolved transport coupling strength" << std::endl;
 
-    os << "num. of q-points: "   << a2f.nqx() << "x" << a2f.nqy() << "x" << a2f.nqz()
+    os << "# num. of q-points: "   << a2f.nqx() << "x" << a2f.nqy() << "x" << a2f.nqz()
        << ", num. of k-points: " << a2f.nkx() << "x" << a2f.nky() << "x" << a2f.nkz() << std::endl; 
-    os << "num. of modes: " << a2f.nmds() << std::endl;
+    os << "# num. of modes: " << a2f.nmds() << std::endl;
 
-    os << "low_band: " << a2f.get_low_band() << std::endl;
-    os << "high_band: " << a2f.get_high_band() << std::endl;
-    os << "elec_temp: " << a2f.get_elec_temp() << std::endl;
+    os << "# low_band: " << a2f.get_low_band() << std::endl;
+    os << "# high_band: " << a2f.get_high_band() << std::endl;
+    os << "# elec_temp: " << a2f.get_elec_temp() << std::endl;
 
-    os << "Fermi level: " << EigenValue::eF << " eV" << std::endl;
+    os << "# Fermi level: " << EigenValue::eF << " eV" << std::endl;
 
     if (a2f.is_tetra())
     {
-        os << "electron sampling: " << "tetrahedra" << std::endl;
-        os << "phonon sampling: "   << "tetrahedra" << std::endl;
+        os << "# electron sampling: " << "tetrahedra" << std::endl;
+        os << "# phonon sampling: "   << "tetrahedra" << std::endl;
     }
     else
     {
-        os << "electron sampling: " << a2f.get_type_of_el_smear() << " " << a2f.elec_smearing() << " eV" << std::endl;
-        os << "phonon sampling: "   << a2f.get_type_of_ph_smear() << " " << a2f.phon_smearing() << " eV" << std::endl;
+        os << "# electron sampling: " << a2f.get_type_of_el_smear() << " " << a2f.elec_smearing() << " eV" << std::endl;
+        os << "# phonon sampling: "   << a2f.get_type_of_ph_smear() << " " << a2f.phon_smearing() << " eV" << std::endl;
     }
 
-    os << "sign: "    << a2f.sign()    << std::endl;
-    os << "sign': " << a2f.sign_pr() << std::endl;
+    os << "# sign: "    << a2f.sign()    << std::endl;
+    os << "# sign': " << a2f.sign_pr() << std::endl;
 
-    os << "velocity component alpha: " << a2f.alpha() << std::endl;
-    os << "velocity component  beta: " << a2f.beta()  << std::endl;
+    os << "# velocity component alpha: " << a2f.alpha() << std::endl;
+    os << "# velocity component  beta: " << a2f.beta()  << std::endl;
 
-    os << "electron energy list [eV]: ";
+    os << "# electron energy list [eV]: ";
     for (auto&& e : a2f.epsilons()) os << e << " ";
     os << std::endl;
-    os << "electronic DOS list [1/eV/spin/cell]: ";
+    os << "# electronic DOS list [1/eV/spin/cell]: ";
     for (auto&& e : a2f.doses()) os << e << " ";
     os << std::endl;
-    os << "transport DOS list [Ry^2*bohr^2/eV]: ";
+    os << "# transport DOS list [Ry^2*bohr^2/eV]: ";
     for (auto&& e : a2f.trans_doses()) os << e << " ";
     os << std::endl;
 
-    os << std::setw(5) << std::left << "iq" << std::right
+    os << std::setw(5) << std::left << "# iq" << std::right
        << std::setw(8)  << "qx"
        << std::setw(8)  << "qy"
        << std::setw(8)  << "qz"
@@ -754,23 +752,29 @@ array1D SpecFunc::calc_exter_sum(double Omega)
     if (!is_full_)
     {
         std::ofstream os;
-        std::string fname = "LambdaTr";
-        std::string suffix = sign() > 0 ? "_plus.dat" : "_minus.dat";
-        fname += suffix; 
+        std::string filename = "LambdaTr_";
+        if (sign_ > 0)   filename += std::string{'p'};
+        else		     filename += std::string{'m'};
+        if (sign_pr_ > 0) filename += std::string{'p'};
+        else		     filename += std::string{'m'};
+        filename += std::string{'_'};
+        filename += std::string{alpha_};
+        filename += std::string{beta_};
+        filename += std::string{".dat"};
 
         const array2D& qpts = qprot_.grid();
 
         if (is_continue_calc_)
         {
             if (!rank)
-                os.open(fname, std::ios_base::app);
+                os.open(filename, std::ios_base::app);
             inner_sum_.resize(epsilons_.size(), array2D(qprot_.nkpt(), array1D(nmds_)));
         }
         else
         {
             if (!rank)
             {
-                os.open(fname);
+                os.open(filename);
                 dump_header_lambda_file(*this, os);
             }
             inner_sum_.resize(epsilons_.size(), array2D(qprot_.nkpt(), array1D(nmds_, 0.0)));
@@ -878,9 +882,10 @@ void calc_spec_func(SpecFunc& a2f, const array1D& omegas, const std::string& fna
             return out;
         };
         std::string header = 
-                  "# elec_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.elec_smearing()) + "eV\n"))
-                + "# phon_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.phon_smearing()) + "eV\n"))
+                  "# elec_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.elec_smearing()) + " eV\n"))
+                + "# phon_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.phon_smearing()) + " eV\n"))
                 + "# sign: " + std::to_string(a2f.sign())
+                + "\n# sign_pr: " + std::to_string(a2f.sign_pr())
                 + "\n# velocity component alpha: " + a2f.alpha()
                 + "\n# velocity component beta: " + a2f.beta()
                 + "\n# electron energy list [eV]: " + array1D_to_string(a2f.epsilons())
@@ -888,7 +893,7 @@ void calc_spec_func(SpecFunc& a2f, const array1D& omegas, const std::string& fna
                 + array1D_to_string(a2f.doses())
                 + "\n# transport DOS for energy list [Ry^2*bohr^2/eV]: "
                 + array1D_to_string(a2f.trans_doses())
-                + "\n#\n# frequency [eV]               spectral function\n";
+                + "\n#\n# Frequency [eV]        Transport Spectral Function\n";
         os << header;
     }
 
@@ -900,7 +905,7 @@ void calc_spec_func(SpecFunc& a2f, const array1D& omegas, const std::string& fna
         {
             os << std::left << std::setw(20) << Om << std::right;
             for (size_t ieps = 0; ieps < a2f.epsilons().size(); ++ieps)
-                os << std::setw(12) << std::setprecision(6) << vals[ieps];
+                os << std::setw(15) << std::setprecision(6) << vals[ieps];
             os << std::endl;
         }
     }

@@ -22,7 +22,7 @@ IHandler::IHandler(const char* a2f_fnm)
     bool header_flag = false;
 
     if (ifs_.fail())
-        throw std::runtime_error("The input file does not exist");
+        throw std::runtime_error("The input file " + std::string{a2f_fnm} + " does not exist");
 
     while (ifs_.good())
     {
@@ -45,8 +45,14 @@ IHandler::IHandler(const char* a2f_fnm)
                 else
                     phon_smearing_ = std::stod(word_or_num);
             }
-            if (line.find("velocity") != std::string::npos)
-                cartes_ind_ = std::strtod(custom_split(line, ' ').back().data(), 0);
+            if (line.find("sign") != std::string::npos)
+                sign_ = std::stoi(custom_split(line, ' ').back().data(), 0);
+            if (line.find("sign_pr") != std::string::npos)
+                sign_pr_ = std::stoi(custom_split(line, ' ').back().data(), 0);
+            if (line.find("alpha") != std::string::npos)
+                alpha_ = *custom_split(line, ' ').back().data();
+            if (line.find("beta") != std::string::npos)
+                beta_ = *custom_split(line, ' ').back().data();
             if (line.find("electron") != std::string::npos)
             {
                 auto splitted_line = custom_split(line, ' ');
@@ -59,7 +65,7 @@ IHandler::IHandler(const char* a2f_fnm)
                 for (size_t i = 7; i < splitted_line.size(); ++i)
                     transDOSes_.push_back(std::strtod(splitted_line[i].data(), 0));
             }
-            if (line.find("frequency") != std::string::npos)
+            if (line.find("Frequency") != std::string::npos)
                 header_flag = true;
         }
         getline(ifs_, line);
@@ -100,11 +106,12 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
             ofs_ << "#  phon_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
         }
         ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
-        for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
+        for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps)
+            ofs_ << ihandler.transDOSes()[ieps] << " ";
         ofs_ << "\n#" << std::endl;
         if (ion_Temps_.empty())
         {
-            ofs_ << std::left << "Te [K]" << std::setw(30) << "        Resistivity [muOm cm]" << std::endl;
+            ofs_ << std::left << "# Te [K]" << std::setw(30) << "      Resistivity [muOm cm]" << std::endl;
         }
         else
         {
@@ -127,11 +134,13 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
             ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
             ofs_ << "#  phon_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
         }
-        for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
+        ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
+        for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps)
+            ofs_ << ihandler.transDOSes()[ieps] << " ";
         ofs_ << "\n#" << std::endl;
         if (ion_Temps_.empty())
         {
-            ofs_ << "Te [K]" << std::setw(35) << "       Thermal Resistivity [W/cm/K]" << std::endl;
+            ofs_ << "# Te [K]" << std::left << std::setw(35) << "      Thermal Resistivity [W/cm/K]" << std::endl;
         }
         else
         {
@@ -154,16 +163,18 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
             ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
             ofs_ << "#  phon_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
         }
-        for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps) ofs_ << ihandler.transDOSes()[ieps];
+        ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
+        for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps)
+            ofs_ << ihandler.transDOSes()[ieps] << " ";
         ofs_ << "\n#" << std::endl;
         if (ion_Temps_.empty())
         {
-            ofs_ << "Te [K]"<< std::setw(35) << "       Seebeck coefficient [muV/K]" << std::endl;
+            ofs_ << "# Te [K]"<< std::left << std::setw(35) << "      Seebeck coefficient [muV/K]" << std::endl;
         }
         else
         {
             ofs_ << "# Seebeck coefficient [muV/K]" << std::endl;
-            ofs_ << "#  Te [K]  \\  Ti [K]:";
+            ofs_ << "#  Te [K]  \\  Ti [K]:     " << std::left;
             for (auto&& Ti : ion_Temps_)
                 ofs_ << std::setw(12) << Ti;
             ofs_ << std::endl;
@@ -191,7 +202,7 @@ void OHandler::dump(const arrays::array1D& Temps, const arrays::array1D& resist)
 void OHandler::dump(const arrays::array1D& Temps, const arrays::array2D& resist)
 {
     assert(resist.size() == Temps.size());
-    assert(resist[0].size() == ion_Temps_.size());
+    assert((resist[0].size() == ion_Temps_.size()) || (ion_Temps_.size() == 0));
     if (ion_Temps_.empty())
         for (size_t itemp = 0; itemp < Temps.size(); ++itemp)
             ofs_ << std::setprecision(6) << std::setw(14) << Temps[itemp]
@@ -200,7 +211,7 @@ void OHandler::dump(const arrays::array1D& Temps, const arrays::array2D& resist)
     {
         for (size_t itemp = 0; itemp < Temps.size(); ++itemp)
         {
-            ofs_ << std::setw(12) << std::setprecision(6) << Temps[itemp];
+            ofs_ << std::setw(12) << std::setprecision(6) << Temps[itemp] << "              ";
             for (size_t jtemp = 0; jtemp < ion_Temps_.size(); ++jtemp)
                 ofs_ << std::setw(12) << std::setprecision(6) << resist[itemp][jtemp];
             ofs_ << std::endl;

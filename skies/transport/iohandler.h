@@ -24,14 +24,20 @@ public:
     arrays::array1D&  transDOSes() { return transDOSes_; }
     double elec_smearing() { return elec_smearing_; }
     double phon_smearing() { return phon_smearing_; }
-    int    cartes_ind() { return cartes_ind_; }
+    int    alpha() { return alpha_; }
+    int    beta()  { return beta_;  }
+    int    sign()    { return sign_;   }
+    int    sign_pr() { return sign_pr_; }
 
 private:
     std::ifstream ifs_;
 
     double elec_smearing_;
     double phon_smearing_;
-    int    cartes_ind_;
+    char    alpha_;
+    char    beta_;
+    int    sign_;
+    int    sign_pr_;
 
     arrays::array1D epsilons_;
     arrays::array1D transDOSes_;

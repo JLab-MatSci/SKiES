@@ -15,6 +15,7 @@ public:
                double elec_smearing,
                double phon_smearing,
                int sign,
+               int sign_pr,
                double Te,
                char alpha,
                char beta,

@@ -10,7 +10,8 @@
 namespace skies { namespace transport {
 
 using innerIntegCalculator = std::function<double(int sign, double Te, double omega,
-                                           const arrays::array1D& epsilons, const arrays::array1D& transDOSes, const arrays::array1D& a2f)>;
+                                           const arrays::array1D& epsilons, const arrays::array1D& transDOSes,
+                                           const arrays::array1D& a2f, int s, int s_prime)>;
 
 /**
  * \brief Calculates integral over \epsilon in (29) 2022 Smirnov N.A. Phys. Rev. B. V.106.
@@ -22,10 +23,14 @@ using innerIntegCalculator = std::function<double(int sign, double Te, double om
  * @param a2f array of transport spectral functions evaluated for these electronic energies and given phonon enenrgy
 */
 double calc_inner_integral_elec_elastic(int sign, double Te, double omega, const arrays::array1D& epsilons,
-                                   const arrays::array1D& transDOSes, const arrays::array1D& a2f);
+                                   const arrays::array1D& transDOSes, const arrays::array1D& a2f, int s = 1, int s_prime = 1);
 void calc_elec_cond_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps, const char* a2f_fnm, const char* cond_fnm, double unit_cell_vol);
-void calc_therm_cond_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps, const char* a2f_plus_fnm, const char* a2f_minus_fnm, const char* cond_fnm, double unit_cell_vol);
-void calc_seebeck_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps, const char* a2f_plus_fnm, const char* a2f_minus_fnm, const char* cond_fnm, double unit_cell_vol);
+void calc_therm_cond_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps,
+                             const char* a2f_plus_fnm, const char* a2f_minus_fnm, const char* cond_fnm,
+                             double unit_cell_vol, const char* a2f_pm_fnm = nullptr, const char* a2f_mp_fnm = nullptr);
+void calc_seebeck_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps,
+                          const char* a2f_plus_fnm, const char* a2f_minus_fnm, const char* cond_fnm,
+                          double unit_cell_vol, const char* a2f_pm_fnm = nullptr, const char* a2f_mp_fnm = nullptr);
 
 // small helper function for inverting Q-matrix
 inline arrays::array2D calc_inv_2d(const arrays::array2D& w)
