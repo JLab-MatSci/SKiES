@@ -6,6 +6,7 @@
 #pragma once
 
 #include <fstream>
+#include <numeric>
 
 #ifdef SKIES_MPI
 #include <skies/utils/mpi_wrapper.h>
