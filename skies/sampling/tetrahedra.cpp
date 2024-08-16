@@ -96,13 +96,17 @@ double evaluate_dos(const array2D& weights,
                     bool use_qprot)
 {
     assert(TetraHandler::is_initialized());
-    TetraHandler th(std::move(weights), transpose(eigenens));
+    TetraHandler th(weights, transpose(eigenens));
     return th.evaluate_dos_at_value(value, use_qprot);
 }
 
 double TetraHandler::evaluate_dos_at_value(double value, bool use_qprot) const
 {
-    auto ikpts = kprot_.range();
+    std::vector<size_t> ikpts;
+    if (use_qprot)
+        ikpts = qprot_.range();
+    else
+        ikpts = kprot_.range();
     double dos = std::transform_reduce(PAR ikpts.begin(), ikpts.end(), 0.0, std::plus<double>(),
         [&] (auto&& ik) -> double {
             std::vector<size_t> ibands(A_.size());

@@ -596,12 +596,9 @@ bool resolve_cmd(const std::string& cmd,
 	) {
 		if (opts["signs"] == "")
 			throw std::runtime_error("a2f command called without signs specification\n");
-		std::cout << "0\n";
 		auto signs = parse_vector_of_numbers<int>(opts["signs"], "signs", 2);
 		int sign    = signs[0];
 		int sign_pr = signs[1];
-
-		std::cout << "1\n";
 
 		if ((std::abs(sign) != 1) || (std::abs(sign_pr) != 1))
 			throw std::runtime_error("signs must take values of +1 or -1\n");
@@ -618,8 +615,6 @@ bool resolve_cmd(const std::string& cmd,
 		filename += std::string{alpha};
 		filename += std::string{beta};
 		filename += std::string{".dat"};
-
-		std::cout << filename << std::endl;
 
 		double low_freq{ 0.1 / 1000.0 };
         double high_freq{ 50.0 / 1000.0 };
@@ -639,14 +634,14 @@ bool resolve_cmd(const std::string& cmd,
 		if (is_continue)
 		{
 			std::string cont_filename = "LambdaTr_";
-			if (sign > 0)    filename += std::string{'p'};
-			else		     filename += std::string{'m'};
-			if (sign_pr > 0) filename += std::string{'p'};
-			else		     filename += std::string{'m'};
-			filename += std::string{'_'};
-			filename += std::string{alpha};
-			filename += std::string{beta};
-			filename += std::string{".dat"};
+			if (sign > 0)    cont_filename += std::string{'p'};
+			else		     cont_filename += std::string{'m'};
+			if (sign_pr > 0) cont_filename += std::string{'p'};
+			else		     cont_filename += std::string{'m'};
+			cont_filename += std::string{'_'};
+			cont_filename += std::string{alpha};
+			cont_filename += std::string{beta};
+			cont_filename += std::string{".dat"};
 
 			auto a2f = SpecFunc(cont_filename);
 

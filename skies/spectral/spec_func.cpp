@@ -321,41 +321,41 @@ SpecFunc::SpecFunc(const std::string& fname)
     if (ifs.good()) std::getline(ifs, line);
     auto splitted_line = custom_split(line, ' ');
 
-    auto xnq = splitted_line[3].data();
+    auto xnq = splitted_line[4].data();
     size_t nqx = std::stoi(custom_split(xnq, 'x')[0].data());
     size_t nqy = std::stoi(custom_split(xnq, 'x')[1].data());
     size_t nqz = std::stoi(custom_split(xnq, 'x')[2].data());
 
-    auto xnk = splitted_line[7].data();
+    auto xnk = splitted_line[8].data();
     size_t nkx = std::stoi(custom_split(xnk, 'x')[0].data());
     size_t nky = std::stoi(custom_split(xnk, 'x')[1].data());
     size_t nkz = std::stoi(custom_split(xnk, 'x')[2].data());
 
     if (ifs.good()) std::getline(ifs, line);
-    size_t nmds = std::stoi(custom_split(line, ' ')[3].data());
+    size_t nmds = std::stoi(custom_split(line, ' ')[4].data());
 
     if (ifs.good()) std::getline(ifs, line);
-    size_t low_band = std::stoi(custom_split(line, ' ')[1].data());
+    size_t low_band = std::stoi(custom_split(line, ' ')[2].data());
 
     if (ifs.good()) std::getline(ifs, line);
-    size_t high_band = std::stoi(custom_split(line, ' ')[1].data());
+    size_t high_band = std::stoi(custom_split(line, ' ')[2].data());
 
     if (ifs.good()) std::getline(ifs, line);
-    double Te = std::stod(custom_split(line, ' ')[1].data());
+    double Te = std::stod(custom_split(line, ' ')[2].data());
 
     if (ifs.good()) std::getline(ifs, line);
-    EigenValue::eF = std::stod(custom_split(line, ' ')[2].data());
+    EigenValue::eF = std::stod(custom_split(line, ' ')[3].data());
 
     double elec_smearing{ 1.0 };
     bzsampling::SamplingFunc elec_sampling = [] (double, double) { return 0.0; };
     if (ifs.good()) std::getline(ifs, line);
-    std::string word = custom_split(line, ' ')[2].data();
+    std::string word = custom_split(line, ' ')[3].data();
     bool is_tetra = false;
     if (word != "tetrahedra")
     {
         is_tetra = false;
-        elec_sampling = switch_sampling(custom_split(line, ' ')[2].data());
-        elec_smearing = std::stod(custom_split(line, ' ')[3].data());
+        elec_sampling = switch_sampling(custom_split(line, ' ')[3].data());
+        elec_smearing = std::stod(custom_split(line, ' ')[4].data());
     }
     else
     {
@@ -365,27 +365,27 @@ SpecFunc::SpecFunc(const std::string& fname)
     double phon_smearing{ 1.0 };
     bzsampling::SamplingFunc phon_sampling = [] (double, double) { return 0.0; };
     if (ifs.good()) std::getline(ifs, line);
-    std::string word2 = custom_split(line, ' ')[2].data();
+    std::string word2 = custom_split(line, ' ')[3].data();
     if ((word2 == "tetrahedra" && word != "tetrahedra") ||
         (word2 != "tetrahedra" && word == "tetrahedra"))
         throw std::runtime_error("Error in continuation file: both samplings must be tetrahedra");
     if (word != "tetrahedra")
     {
-        phon_sampling = switch_sampling(custom_split(line, ' ')[2].data());
-        phon_smearing = std::stod(custom_split(line, ' ')[3].data());
+        phon_sampling = switch_sampling(custom_split(line, ' ')[3].data());
+        phon_smearing = std::stod(custom_split(line, ' ')[4].data());
     }
 
     if (ifs.good()) std::getline(ifs, line);
-    int sign    = std::stoi(custom_split(line, ' ')[1].data());
+    int sign    = std::stoi(custom_split(line, ' ')[2].data());
 
     if (ifs.good()) std::getline(ifs, line);
-    int sign_pr = std::stoi(custom_split(line, ' ')[1].data());
+    int sign_pr = std::stoi(custom_split(line, ' ')[2].data());
 
     if (ifs.good()) std::getline(ifs, line);
-    char alpha = *custom_split(line, ' ')[3].data();
+    char alpha = *custom_split(line, ' ')[4].data();
 
     if (ifs.good()) std::getline(ifs, line);
-    char beta = *custom_split(line, ' ')[3].data();
+    char beta = *custom_split(line, ' ')[4].data();
 
     // initialize class fields
     kprot_ = KPprotocol{nkx, nky, nkz};
@@ -399,23 +399,23 @@ SpecFunc::SpecFunc(const std::string& fname)
 
     if (ifs.good()) std::getline(ifs, line);
     auto epsilons_line = custom_split(line, ' ');
-    if (epsilons_line.size() < 5)
+    if (epsilons_line.size() < 6)
         throw std::runtime_error("Electron energy list must contain at least one value.");
-    for (size_t i = 4; i < epsilons_line.size(); ++i)
+    for (size_t i = 5; i < epsilons_line.size(); ++i)
         epsilons_.push_back(std::stod(epsilons_line[i]));
 
     if (ifs.good()) std::getline(ifs, line);
     auto DOSes_line = custom_split(line, ' ');
-    if (DOSes_line.size() < 5)
+    if (DOSes_line.size() < 6)
         throw std::runtime_error("DOS list must contain at least one value.");
-    for (size_t i = 4; i < DOSes_line.size(); ++i)
+    for (size_t i = 5; i < DOSes_line.size(); ++i)
         DOSes_.push_back(std::stod(DOSes_line[i])); // in file DOSes are given in [1/eV/spin/cell]
 
     if (ifs.good()) std::getline(ifs, line);
     auto trDOSes_line = custom_split(line, ' ');
-    if (trDOSes_line.size() < 5)
+    if (trDOSes_line.size() < 6)
         throw std::runtime_error("trDOS list must contain at least one value.");
-    for (size_t i = 4; i < trDOSes_line.size(); ++i)
+    for (size_t i = 5; i < trDOSes_line.size(); ++i)
         trDOSes_.push_back(std::stod(trDOSes_line[i])); // in file trDOSes are given in [Ry^2 * bohr^2 / eV]
 
     if (ifs.good()) std::getline(ifs, line);
@@ -476,7 +476,7 @@ SpecFunc::SpecFunc(const std::string& fname)
 SpecFunc::~SpecFunc() {}
 
 array1D SpecFunc::calc_spec_func(double Omega)
-{
+{ 
     array1D a2f = 0.5 * calc_exter_sum(Omega) * ((is_tetra_)
                                               ? (1.0 / kprot_.nkpt())
                                               : (1.0 / kprot_.nkpt() / qprot_.nkpt()));
@@ -838,7 +838,7 @@ array1D SpecFunc::calc_exter_sum(double Omega)
         {
             // here inner matrix elements inner_sum_{q\nu} have been accumulated
             for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
-                exterSum[ieps] = tetrahedra::evaluate_dos(transpose(inner_sum_[ieps]), eigenfreqs_, Omega, true);
+                exterSum[ieps] = tetrahedra::evaluate_dos(transpose(inner_sum_[ieps]),  eigenfreqs_, Omega, true);
             return exterSum; // already divided by nqpt!
         }
         else
