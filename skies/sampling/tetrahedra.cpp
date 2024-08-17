@@ -117,7 +117,10 @@ double TetraHandler::evaluate_dos_at_value(double value, bool use_qprot) const
             });
         }
     );
-    dos /= kprot_.nkpt();
+    if (use_qprot)
+        dos /= qprot_.nkpt();
+    else
+        dos /= kprot_.nkpt();
     return dos;
 }
 
