@@ -107,7 +107,7 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
         }
         ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps)
-            ofs_ << ihandler.transDOSes()[ieps] << " ";
+            ofs_ << ihandler.transDOSes()[ieps] * units::Ry_in_eV << " ";
         ofs_ << "\n#" << std::endl;
         if (ion_Temps_.empty())
         {
@@ -136,7 +136,7 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
         }
         ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps)
-            ofs_ << ihandler.transDOSes()[ieps] << " ";
+            ofs_ << ihandler.transDOSes()[ieps] * units::Ry_in_eV << " ";
         ofs_ << "\n#" << std::endl;
         if (ion_Temps_.empty())
         {
@@ -165,7 +165,7 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
         }
         ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
         for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps)
-            ofs_ << ihandler.transDOSes()[ieps] << " ";
+            ofs_ << ihandler.transDOSes()[ieps] * units::Ry_in_eV << " ";
         ofs_ << "\n#" << std::endl;
         if (ion_Temps_.empty())
         {

@@ -42,7 +42,6 @@ double calc_inner_integral_inelastic(double TeV, const array1D& freqs, const arr
 
 void calc_elec_cond_inelastic(const array1D& Temps, const char* a2f_fnm, const char* cond_fnm, double unit_cell_vol)
 {
-    std::cout << a2f_fnm << std::endl;
     IHandler ihandler(a2f_fnm);
     if (ihandler.epsilons().size() > 1)
         throw std::runtime_error("There must be just Fermi level in inelastic formulas.");
@@ -55,7 +54,7 @@ void calc_elec_cond_inelastic(const array1D& Temps, const char* a2f_fnm, const c
         double TeV = Temp / 11606.0;
         double integ = calc_inner_integral_inelastic(TeV, ihandler.omegas(), ihandler.a2f());
         double e2 = 2.0;
-        double prefactor = 2.0 * pi * unit_cell_vol * TeV * eV_in_Ry * rau_in_muOm_cm / (e2 * ihandler.transDOSes()[0]);
+        double prefactor = 2.0 * pi * unit_cell_vol * TeV * eV_in_Ry * rau_in_muOm_cm / (e2 * ihandler.transDOSes()[0] * units::Ry_in_eV);
         resist.push_back(integ * prefactor);
     }
     OHandler ohandler(a2f_fnm, cond_fnm, ResistType::Electrical);
