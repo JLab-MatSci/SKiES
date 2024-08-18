@@ -900,8 +900,8 @@ bool resolve_cmd(const std::string& cmd,
 		bool add_odd = opts["add_odd"] == "true" ? true : false;
 		std::string	a2f_pm_fnm;
 		std::string	a2f_mp_fnm;
-		assert(a2f_pm_fnm.c_str() == nullptr);
-		assert(a2f_mp_fnm.c_str() == nullptr);
+		assert(a2f_pm_fnm.size() == 0);
+		assert(a2f_mp_fnm.size() == 0);
 		if (add_odd)
 		{
 			a2f_pm_fnm = "SpecFunc_pm_";
@@ -919,6 +919,10 @@ bool resolve_cmd(const std::string& cmd,
 		t.start("========= Evaluating thermal conductivity...");
 		if (is_elastic)
 		{
+			if (a2f_pm_fnm.size() == 0)
+				a2f_pm_fnm = nullptr;
+			if (a2f_mp_fnm.size() == 0)
+				a2f_mp_fnm = nullptr;
 			transport::calc_therm_cond_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(),
 				outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm.c_str(), a2f_mp_fnm.c_str());
 		}
@@ -996,8 +1000,8 @@ bool resolve_cmd(const std::string& cmd,
 		bool add_odd = opts["add_odd"] == "true" ? true : false;
 		std::string	a2f_pm_fnm;
 		std::string	a2f_mp_fnm;
-		assert(a2f_pm_fnm.c_str() == nullptr);
-		assert(a2f_mp_fnm.c_str() == nullptr);
+		assert(a2f_pm_fnm.size() == 0);
+		assert(a2f_mp_fnm.size() == 0);
 		if (add_odd)
 		{
 			a2f_pm_fnm = "SpecFunc_pm_";
@@ -1013,6 +1017,10 @@ bool resolve_cmd(const std::string& cmd,
 		launch::Timer t;
 		t.start("========= Evaluating Seebeck coefficient...");
 
+		if (a2f_pm_fnm.size() == 0)
+			a2f_pm_fnm = nullptr;
+		if (a2f_mp_fnm.size() == 0)
+			a2f_mp_fnm = nullptr;
 		transport::calc_seebeck_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(),
 			outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm.c_str(), a2f_mp_fnm.c_str());
 

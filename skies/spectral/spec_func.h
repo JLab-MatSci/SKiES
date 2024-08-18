@@ -48,6 +48,14 @@ private:
     void prepare_fsh(const arrays::array2D& elvelocs, const arrays::array2D& elvelocs_sq, arrays::array2D& fsh);
     void prepare_fsh(const tetrahedra::TetraHandler& th_dos, const tetrahedra::TetraHandler& th_trdos,
                      const arrays::array2D& elvelocs, arrays::array2D& fsh);
+    void calc_inner_sum_in_subarray_tetra_par(size_t ik, size_t iq, size_t imd,
+                                           arrays::array2D& eigenens,
+                                           arrays::array2D& eigenens_qk,
+                                           arrays::array3D& matels);
+    void calc_inner_sum_in_subarray_tetra_nopar(size_t ik, size_t iq, size_t imd,
+                                           arrays::array2D& eigenens,
+                                           arrays::array2D& eigenens_qk,
+                                           arrays::array3D& matels);
 
     KPprotocol kprot_;
     KPprotocol qprot_;
@@ -103,6 +111,12 @@ private:
 
     std::string type_of_el_smear_;
     std::string type_of_ph_smear_;
+
+    arrays::array1D eigenens_qk_;
+    arrays::array1D elvelocs_qk_alpha_;
+    arrays::array1D elvelocs_qk_beta_;
+    arrays::array1D fsh_qk_alpha_;
+    arrays::array1D fsh_qk_beta_;
 public:
     double elec_smearing() const { return elec_smearing_; }
     double phon_smearing() const { return phon_smearing_; }
@@ -142,8 +156,8 @@ public:
 
 private:
     double calc_inner_sum(size_t iq, size_t imd, size_t ieps);
-    double calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps, size_t low_band, size_t high_band);
-    double calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps, size_t low_band, size_t high_band);
+    double calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps);
+    double calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps);
     arrays::array1D calc_exter_sum(double Omega);
 
     //void dump_trdos_file();

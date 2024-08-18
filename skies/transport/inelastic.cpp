@@ -86,14 +86,14 @@ void calc_therm_cond_inelastic(const array1D& Temps, const char* a2f_plus_fnm, c
         throw std::runtime_error("There must be just Fermi level in inelastic formulas.");
     array1D kappas;
 
-    std::cout << 6.0 * unit_cell_vol * 100.0 / (pi * iplusHandler.transDOSes()[0] * kB * hbar) << std::endl;
+    std::cout << 6.0 * unit_cell_vol * 100.0 / (pi * iplusHandler.transDOSes()[0] * units::Ry_in_eV * kB * hbar) << std::endl;
     for (size_t i = 0; i < Temps.size(); ++i)
     {
         double Temp = Temps[i];
         double TeV = Temp / 11606.0;
         double integ = calc_inner_integral_inelastic(TeV, iplusHandler.omegas(),
                                                      iplusHandler.a2f(), iminusHandler.a2f());
-        kappas.push_back(pi * iplusHandler.transDOSes()[0] * kB_as_Ry_over_K / (6.0 * unit_cell_vol * integ * rau_in_cm_over_W));
+        kappas.push_back(pi * iplusHandler.transDOSes()[0] * units::Ry_in_eV * kB_as_Ry_over_K / (6.0 * unit_cell_vol * integ * rau_in_cm_over_W));
     }
     
     OHandler ohandler(a2f_plus_fnm, cond_fnm, ResistType::Thermal);

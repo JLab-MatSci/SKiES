@@ -496,20 +496,19 @@ double SpecFunc::calc_inner_sum(size_t iq, size_t imd, size_t ieps)
 {
     double inner_sum{ 0.0 }; // dos, not divided by nkpt
     if (is_tetra_)
-        inner_sum = calc_inner_sum_in_subarray_tetra(iq, imd, ieps, low_band_, high_band_);
+        inner_sum = calc_inner_sum_in_subarray_tetra(iq, imd, ieps);
     else
-        inner_sum = calc_inner_sum_in_subarray(iq, imd, ieps, low_band_, high_band_);
+        inner_sum = calc_inner_sum_in_subarray(iq, imd, ieps);
     inner_sum_[ieps][iq][imd] = inner_sum;
     return inner_sum;
 }
 
 
 double
-SpecFunc::calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps,
-                                     size_t low_band, size_t high_band)
+SpecFunc::calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps)
 {
-    assert(low_band <= high_band);
-    auto nbnd = high_band - low_band + 1;
+    assert(low_band_ <= high_band_);
+    auto nbnd = high_band_ - low_band_ + 1;
 
     const array2D& kpts = kprot_.grid(); 
     const array2D& qpts = qprot_.grid(); 
@@ -595,96 +594,131 @@ SpecFunc::calc_inner_sum_in_subarray(size_t iq, size_t imd, size_t ieps,
 }
 
 double
-SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps,
-                                     size_t low_band, size_t high_band)
+SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps)
 {
     // similar to calc_inner_sum_in_subarray, but uses tetrahedron method for BZ sampling
-    assert(low_band <= high_band);
-    auto nbnd = high_band - low_band + 1;
+    assert(low_band_ <= high_band_);
+    auto nbnd = high_band_ - low_band_ + 1;
 
-    // size_t ik{ 0 };
-    // size_t finish{ kprot_.nkpt() };
     array2D eigenens(kprot_.nkpt(), array1D(nbnd, 0.0));
     array2D eigenens_qk(kprot_.nkpt(), array1D(nbnd, 0.0));
     array3D matels(nbnd, array2D(nbnd, array1D(kprot_.nkpt(), 0.0)));
-    const array2D& kpts = kprot_.grid();
-    const array2D& qpts = qprot_.grid();
 
-    // for (; ik < finish; ++ik)
-    // {
-    std::for_each(PAR kprot_.range().begin(), kprot_.range().end(), [&] (auto&& ik)
-    {
-        auto k = kpts[ik];
-        auto q = qpts[iq];
-        auto qk = k + q;
-        auto tmp_qk = EigenValue::interpolate_at(qk);
-
-        auto elvelocs_qk_alpha = Velocities(alpha_).interpolate_at(qk);
-        auto fsh_qk_alpha = array1D(EigenValue::nbands, 0.0);
-        if (epsilons_.size() > 1)
-            std::transform(tmp_qk.begin(), tmp_qk.end(), elvelocs_qk_alpha.begin(), fsh_qk_alpha.begin(),
-                [&] (auto&& e, auto&& v) {
-                    auto DOS_mqk = th_dos_.evaluate_dos_at_value(e);
-                    auto trDOS_mqk = th_trdos_alpha_.evaluate_dos_at_value(e);
-                    return v / std::sqrt(trDOS_mqk / DOS_mqk);
-            });
-
-        auto elvelocs_qk_beta = array1D(EigenValue::nbands, 0.0);
-        auto fsh_qk_beta = array1D(EigenValue::nbands, 0.0);
-        if (alpha_ != beta_)
+    if (epsilons_.size() == 1)
+    { // low-T case, parallel here
+        std::for_each(PAR kprot_.range().begin(), kprot_.range().end(), [&] (auto&& ik)
         {
-            elvelocs_qk_beta = Velocities(beta_).interpolate_at(qk);
-            if (epsilons_.size() > 1)
-                std::transform(tmp_qk.begin(), tmp_qk.end(), elvelocs_qk_beta.begin(), fsh_qk_beta.begin(),
-                    [&] (auto&& e, auto&& v) {
-                        auto DOS_mqk = th_dos_.evaluate_dos_at_value(e);
-                        auto trDOS_mqk = th_trdos_alpha_.evaluate_dos_at_value(e);
-                        return v / std::sqrt(trDOS_mqk / DOS_mqk);
-                });
-        }
-        else
+            calc_inner_sum_in_subarray_tetra_par(ik, iq, imd, eigenens, eigenens_qk, matels);
+        });
+    }
+    else
+    { // general case, thread conflicts may arise here
+        std::for_each(kprot_.range().begin(), kprot_.range().end(), [&] (auto&& ik)
         {
-            elvelocs_qk_beta = elvelocs_qk_alpha;
-            fsh_qk_beta = fsh_qk_alpha;
-        }
+            calc_inner_sum_in_subarray_tetra_nopar(ik, iq, imd, eigenens, eigenens_qk, matels);
+        });
+    }
 
-        for (size_t n = 0; n < nbnd; ++n)
-        {
-            eigenens[ik][n] = eigenens_[ik][n + low_band_];
-            eigenens_qk[ik][n] = tmp_qk[n + low_band_];
-
-            if (epsilons_.size() > 1) // general formulas
-            {
-                double fsh_kn_alpha = fsh_alpha_[ik][n + low_band_];
-                double fsh_kn_beta  = fsh_beta_[ik][n + low_band_];
-                for (size_t m = 0; m < nbnd; ++m)
-                {
-                    double fsh_qkm_alpha = fsh_qk_alpha[m + low_band_];
-                    double fsh_qkm_beta  = fsh_qk_beta[m + low_band_];
-                    double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
-                    double fsh_factor = (fsh_kn_alpha - sign_*fsh_qkm_alpha)*(fsh_kn_beta - sign_pr_*fsh_qkm_beta);
-                    matels[n][m][ik] = matel2 * fsh_factor;
-                }
-            }
-            else // low-T formulas
-            {
-                double vkn_alpha = elvelocs_alpha_[ik][n + low_band_];
-                double vkn_beta  = elvelocs_beta_[ik][n + low_band_];
-                for (size_t m = 0; m < nbnd; ++m)
-                {
-                    double vkqm_alpha = elvelocs_qk_alpha[m + low_band_];
-                    double vkqm_beta  = elvelocs_qk_beta[m + low_band_];
-                    double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
-                    double veloc_factor = (vkn_alpha - sign_*vkqm_alpha)*(vkn_beta - sign_pr_*vkqm_beta);
-                    matels[n][m][ik] = matel2 * veloc_factor;
-                }
-            }
-        }
-    });
-    // } // kpts
     auto eps = epsilons_[ieps];
     tetrahedra::DoubleTetraHandler dth(std::move(matels), std::move(eigenens), std::move(eigenens_qk));
     return dth.evaluate_dos_at_values(eps, eps);
+}
+
+void
+SpecFunc::calc_inner_sum_in_subarray_tetra_par(size_t ik, size_t iq, size_t imd,
+                                            array2D& eigenens, array2D& eigenens_qk,
+                                            array3D& matels)
+{
+    auto k = kprot_.grid()[ik];
+    auto q = qprot_.grid()[iq];
+    auto qk = k + q;
+    auto tmp_qk = EigenValue::interpolate_at(qk);
+    auto elvelocs_qk_alpha = Velocities(alpha_).interpolate_at(qk);
+    auto elvelocs_qk_beta = array1D(EigenValue::nbands, 0.0);
+
+    if (alpha_ != beta_)
+        elvelocs_qk_beta = Velocities(beta_).interpolate_at(qk);
+    else
+        elvelocs_qk_beta = elvelocs_qk_alpha;
+
+    size_t nbnd = high_band_ - low_band_ + 1;
+    for (size_t n = 0; n < nbnd; ++n)
+    {
+        eigenens[ik][n] = eigenens_[ik][n + low_band_];
+        eigenens_qk[ik][n] = tmp_qk[n + low_band_];
+
+        double vkn_alpha = elvelocs_alpha_[ik][n + low_band_];
+        double vkn_beta  = elvelocs_beta_[ik][n + low_band_];
+        for (size_t m = 0; m < nbnd; ++m)
+        {
+            double vkqm_alpha = elvelocs_qk_alpha[m + low_band_];
+            double vkqm_beta  = elvelocs_qk_beta[m + low_band_];
+            double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
+            double veloc_factor = (vkn_alpha - sign_*vkqm_alpha)*(vkn_beta - sign_pr_*vkqm_beta);
+            matels[n][m][ik] = matel2 * veloc_factor;
+        }
+    }
+}
+
+void
+SpecFunc::calc_inner_sum_in_subarray_tetra_nopar(size_t ik, size_t iq, size_t imd,
+                                            array2D& eigenens, array2D& eigenens_qk,
+                                            array3D& matels)
+{
+    auto k = kprot_.grid()[ik];
+    auto q = qprot_.grid()[iq];
+    auto qk = k + q;
+
+    // only fullfilled once for each q-point
+    if (imd == 0)
+    {
+        // save this to the special cached members
+        fsh_qk_alpha_.resize(EigenValue::nbands, 0.0);
+        fsh_qk_beta_.resize(EigenValue::nbands,  0.0);
+
+        eigenens_qk_ = EigenValue::interpolate_at(qk);
+        elvelocs_qk_alpha_ = Velocities(alpha_).interpolate_at(qk);
+        std::transform(eigenens_qk_.begin(), eigenens_qk_.end(), elvelocs_qk_alpha_.begin(), fsh_qk_alpha_.begin(),
+            [&] (auto&& e, auto&& v) {
+                auto DOS_mqk = th_dos_.evaluate_dos_at_value(e);
+                auto trDOS_mqk = th_trdos_alpha_.evaluate_dos_at_value(e);
+                return v / std::sqrt(trDOS_mqk / DOS_mqk);
+        });
+        
+        if (alpha_ != beta_)
+        {
+            elvelocs_qk_beta_ = Velocities(beta_).interpolate_at(qk);
+            std::transform(eigenens_qk_.begin(), eigenens_qk_.end(), elvelocs_qk_beta_.begin(), fsh_qk_beta_.begin(),
+                [&] (auto&& e, auto&& v) {
+                    auto DOS_mqk = th_dos_.evaluate_dos_at_value(e);
+                    auto trDOS_mqk = th_trdos_beta_.evaluate_dos_at_value(e);
+                    return v / std::sqrt(trDOS_mqk / DOS_mqk);
+            });
+        }
+        else
+        {
+            elvelocs_qk_beta_ = elvelocs_qk_alpha_;
+            fsh_qk_beta_ = fsh_qk_alpha_;
+        }
+    } // imd == 0
+
+    size_t nbnd = high_band_ - low_band_ + 1;
+    for (size_t n = 0; n < nbnd; ++n)
+    {
+        eigenens[ik][n] = eigenens_[ik][n + low_band_];
+        eigenens_qk[ik][n] = eigenens_qk_[n + low_band_];
+
+        double fsh_kn_alpha = fsh_alpha_[ik][n + low_band_];
+        double fsh_kn_beta  = fsh_beta_[ik][n + low_band_];
+        for (size_t m = 0; m < nbnd; ++m)
+        {
+            double fsh_qkm_alpha = fsh_qk_alpha_[m + low_band_];
+            double fsh_qkm_beta  = fsh_qk_beta_[m + low_band_];
+            double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
+            double fsh_factor = (fsh_kn_alpha - sign_*fsh_qkm_alpha)*(fsh_kn_beta - sign_pr_*fsh_qkm_beta);
+            matels[n][m][ik] = matel2 * fsh_factor;
+        }
+    }
 }
 
 void dump_header_lambda_file(const SpecFunc& a2f, std::ofstream& os)
@@ -792,7 +826,7 @@ array1D SpecFunc::calc_exter_sum(double Omega)
                     for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
                     {
                         // just accumulate inner matrix elements inner_sum_{q\nu} for the next use of tetrahedron method
-                        calc_inner_sum(iq, imd, ieps);
+                        calc_inner_sum(iq, imd, ieps); // called for each imd and ieps
                     }
                 }
                 else
