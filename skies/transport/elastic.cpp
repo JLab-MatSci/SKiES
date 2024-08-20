@@ -37,7 +37,7 @@ array1D fermi_dirac_factor(int sign, double Te, double omega, const array1D& eps
 {
     assert(epsilons.size() > 1);
     array1D factor(epsilons.size(), 0.0);
-    std::transform(PAR epsilons.begin(), epsilons.end(), factor.begin(),
+    std::transform(epsilons.begin(), epsilons.end(), factor.begin(),
         [sign, Te, omega] (double e) {
             return fermi_dirac(e, Te) * (1 - fermi_dirac(e + sign * omega, Te));
     });
@@ -48,7 +48,7 @@ array1D bose_einstein_factor(double Ti, const array1D& omegas, int add)
 {
     assert(omegas.size() > 1);
     array1D factor(omegas.size(), 0.0);
-    std::transform(PAR omegas.begin(), omegas.end(), factor.begin(),
+    std::transform(omegas.begin(), omegas.end(), factor.begin(),
         [Ti, add] (double om) {
             return bose_einstein(om, Ti) + add;
     });
@@ -59,16 +59,16 @@ array1D calc_a2f_over_transDOS(const array1D& epsilons, const array1D& transDOSe
 {
     array1D a2f_over_transDOS(epsilons.size(), 0.0);
     std::vector<int> inds(epsilons.size(), 0); std::iota(inds.begin(), inds.end(), 0);
-    std::transform(PAR inds.begin(), inds.end(), a2f_over_transDOS.begin(),
+    std::transform(inds.begin(), inds.end(), a2f_over_transDOS.begin(),
         [a2f, transDOSes] (size_t i) {
-            return a2f[i] / transDOSes[i];
+            return a2f[i] / (transDOSes[i] * units::Ry_in_eV);
     });
     return a2f_over_transDOS;
 }
 
-array2D calc_external_integral(const array1D& Temps, const array1D& ion_Temps, int ord, innerIntegCalculator calc_inner_integ, const char* a2f_fnm)
+array2D calc_external_integral(const array1D& Temps, const array1D& ion_Temps, int ord, innerIntegCalculator calc_inner_integ, const std::string& a2f_fnm)
 {
-    IHandler ihandler(a2f_fnm);
+    IHandler ihandler(a2f_fnm.c_str());
     if (ihandler.epsilons().size() < 2)
         throw std::runtime_error("There must be at least two values of electron energies in inelastic formulas.");
     if (ihandler.omegas().size() < 2)
@@ -174,7 +174,7 @@ double calc_inner_integral_therm_elastic_ord1(int sign, double Te, double omega,
 
     array1D epsilon_first_moment(neps, 0.0);
     std::vector<int> inds(neps, 0); std::iota(inds.begin(), inds.end(), 0);
-    std::transform(PAR inds.begin(), inds.end(), epsilon_first_moment.begin(), [&] (size_t i) {
+    std::transform(inds.begin(), inds.end(), epsilon_first_moment.begin(), [&] (size_t i) {
         return ((epsilons[i] + s_prime * epsilons[i]) + sign * omega) * a2f_over_transDOS[i];
     });
 
@@ -198,7 +198,7 @@ double calc_inner_integral_therm_elastic_ord2(int sign, double Te, double omega,
 
     array1D epsilon_second_moment(neps, 0.0);
     std::vector<int> inds(neps, 0); std::iota(inds.begin(), inds.end(), 0);
-    std::transform(PAR inds.begin(), inds.end(), epsilon_second_moment.begin(), [&] (size_t i) {
+    std::transform(inds.begin(), inds.end(), epsilon_second_moment.begin(), [&] (size_t i) {
         return ((epsilons[i] + s       * epsilons[i]) + sign * omega)
              * ((epsilons[i] + s_prime * epsilons[i]) + sign * omega) * a2f_over_transDOS[i];
     });
@@ -210,7 +210,7 @@ double calc_inner_integral_therm_elastic_ord2(int sign, double Te, double omega,
 
 void calc_therm_cond_elastic(const array1D& Temps, const array1D& ion_Temps, const char* a2f_plus_fnm,
                              const char* a2f_minus_fnm, const char* cond_fnm, double unit_cell_vol,
-                             const char* a2f_pm_fnm, const char* a2f_mp_fnm)
+                             const std::string& a2f_pm_fnm, const std::string& a2f_mp_fnm)
 {
     // unit cell volumes must be given in [bohr^3]
     // each prefactor must be multiplied by eV_in_Ry which comes from integration over epsilons and omegas and from the order ord in Q matrix
@@ -219,7 +219,7 @@ void calc_therm_cond_elastic(const array1D& Temps, const array1D& ion_Temps, con
 
     prefactor = std::sqrt(3.0) * unit_cell_vol * eV_in_Ry;
     auto Qx0x1 = prefactor * calc_external_integral(Temps, ion_Temps, 1, calc_inner_integral_therm_elastic_ord1, a2f_plus_fnm);
-    if (a2f_pm_fnm)
+    if (a2f_pm_fnm.size())
         Qx0x1 = Qx0x1
                + prefactor * calc_external_integral(Temps, ion_Temps, 1, calc_inner_integral_therm_elastic_ord1, a2f_pm_fnm);
 
@@ -227,7 +227,7 @@ void calc_therm_cond_elastic(const array1D& Temps, const array1D& ion_Temps, con
     prefactor *= 0.25; // from summation over s, s' in (32)
     auto Qx1x1 = prefactor * (calc_external_integral(Temps, ion_Temps, 2, calc_inner_integral_therm_elastic_ord2, a2f_plus_fnm)
                             + calc_external_integral(Temps, ion_Temps, 2, calc_inner_integral_therm_elastic_ord2, a2f_minus_fnm));
-    if (a2f_pm_fnm)
+    if (a2f_pm_fnm.size())
         Qx1x1 = Qx1x1
                + prefactor * (calc_external_integral(Temps, ion_Temps, 2, calc_inner_integral_therm_elastic_ord2, a2f_pm_fnm)
                             + calc_external_integral(Temps, ion_Temps, 2, calc_inner_integral_therm_elastic_ord2, a2f_mp_fnm));
@@ -238,7 +238,7 @@ void calc_therm_cond_elastic(const array1D& Temps, const array1D& ion_Temps, con
         array1D elec_temp_line;
         if (ion_Temps.empty())
         {
-            array2D Q = { { Qx0x0[i][i], Qx0x1[i][i] }, { Qx0x1[i][i], Qx1x1[i][i] } };
+            array2D Q = { { Qx0x0[i][0], Qx0x1[i][0] }, { Qx0x1[i][0], Qx1x1[i][0] } };
             auto invQ = calc_inv_2d( Q );
 
             prefactor = (2.0 * pi * pi / 3.0) * TeV * eV_in_Ry * kB_as_Ry_over_K; // in r.a.u.
@@ -266,7 +266,7 @@ void calc_therm_cond_elastic(const array1D& Temps, const array1D& ion_Temps, con
 
 void calc_seebeck_elastic(const arrays::array1D& Temps, const arrays::array1D& ion_Temps, const char* a2f_plus_fnm,
                           const char* a2f_minus_fnm, const char* cond_fnm, double unit_cell_vol,
-                          const char* a2f_pm_fnm, const char* a2f_mp_fnm)
+                          const std::string& a2f_pm_fnm, const std::string& a2f_mp_fnm)
 {
     // unit cell volumes must be given in [bohr^3]
     // each prefactor must be multiplied by eV_in_Ry which comes from integration over epsilons and omegas and from the order ord in Q matrix
@@ -275,15 +275,18 @@ void calc_seebeck_elastic(const arrays::array1D& Temps, const arrays::array1D& i
 
     prefactor = std::sqrt(3.0) * unit_cell_vol * eV_in_Ry;
     auto Qx0x1 = prefactor * calc_external_integral(Temps, ion_Temps, 1, calc_inner_integral_therm_elastic_ord1, a2f_plus_fnm);
-    if (a2f_pm_fnm)
+    if (a2f_pm_fnm.size())
+    {
+        std::cout << a2f_pm_fnm << std::endl;
         Qx0x1 = Qx0x1
                + prefactor * calc_external_integral(Temps, ion_Temps, 1, calc_inner_integral_therm_elastic_ord1, a2f_pm_fnm);
+    }
 
     prefactor = 6.0 / pi * unit_cell_vol * eV_in_Ry;
     prefactor *= 0.25; // from summation over s, s' in (32)
     auto Qx1x1 = prefactor * (calc_external_integral(Temps, ion_Temps, 2, calc_inner_integral_therm_elastic_ord2, a2f_plus_fnm)
                             + calc_external_integral(Temps, ion_Temps, 2, calc_inner_integral_therm_elastic_ord2, a2f_minus_fnm));
-    if (a2f_pm_fnm)
+    if (a2f_pm_fnm.size())
         Qx1x1 = Qx1x1
                + prefactor * (calc_external_integral(Temps, ion_Temps, 2, calc_inner_integral_therm_elastic_ord2, a2f_pm_fnm)
                             + calc_external_integral(Temps, ion_Temps, 2, calc_inner_integral_therm_elastic_ord2, a2f_mp_fnm));
@@ -296,7 +299,7 @@ void calc_seebeck_elastic(const arrays::array1D& Temps, const arrays::array1D& i
         array1D elec_temp_line;
         if (ion_Temps.empty())
         {
-            array2D Q = { { Qx0x0[i][i], Qx0x1[i][i] }, { Qx0x1[i][i], Qx1x1[i][i] } };
+            array2D Q = { { Qx0x0[i][0], Qx0x1[i][0] }, { Qx0x1[i][0], Qx1x1[i][0] } };
             auto invQ = calc_inv_2d( Q );
 
             auto s = prefactor * invQ[0][1] / invQ[0][0]; // still in r.a.u.

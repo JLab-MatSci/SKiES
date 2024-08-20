@@ -45,9 +45,9 @@ IHandler::IHandler(const char* a2f_fnm)
                 else
                     phon_smearing_ = std::stod(word_or_num);
             }
-            if (line.find("sign") != std::string::npos)
+            if (line.find("sign:") != std::string::npos)
                 sign_ = std::stoi(custom_split(line, ' ').back().data(), 0);
-            if (line.find("sign_pr") != std::string::npos)
+            if (line.find("sign_pr:") != std::string::npos)
                 sign_pr_ = std::stoi(custom_split(line, ' ').back().data(), 0);
             if (line.find("alpha") != std::string::npos)
                 alpha_ = *custom_split(line, ' ').back().data();

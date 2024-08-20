@@ -919,12 +919,8 @@ bool resolve_cmd(const std::string& cmd,
 		t.start("========= Evaluating thermal conductivity...");
 		if (is_elastic)
 		{
-			if (a2f_pm_fnm.size() == 0)
-				a2f_pm_fnm = nullptr;
-			if (a2f_mp_fnm.size() == 0)
-				a2f_mp_fnm = nullptr;
 			transport::calc_therm_cond_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(),
-				outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm.c_str(), a2f_mp_fnm.c_str());
+				outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm, a2f_mp_fnm);
 		}
 		else
 		{
@@ -1017,12 +1013,8 @@ bool resolve_cmd(const std::string& cmd,
 		launch::Timer t;
 		t.start("========= Evaluating Seebeck coefficient...");
 
-		if (a2f_pm_fnm.size() == 0)
-			a2f_pm_fnm = nullptr;
-		if (a2f_mp_fnm.size() == 0)
-			a2f_mp_fnm = nullptr;
 		transport::calc_seebeck_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(),
-			outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm.c_str(), a2f_mp_fnm.c_str());
+			outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm, a2f_mp_fnm);
 
 		t.stop("========= Seebeck coefficient is evaluated. The results are written to " + outfile);
 		t.print_elapsed("\t  Seebeck coefficient evaluation time: ");

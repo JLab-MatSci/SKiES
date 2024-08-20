@@ -44,25 +44,21 @@ void SpecFunc::init()
     }
 
     // eigenens_ at (n,k)-grid are filled only once here
-    eigenens_.resize(kprot_.nkpt(), array1D(nbnd_));
-    std::transform(PAR kprot_.grid().begin(), kprot_.grid().end(), eigenens_.begin(), [] (auto&& k) {
-        return EigenValueDrawable().interpolate_at(k);
-    });
+    prepare_eigenens(eigenens_);
 
     // eigefreqs_ at (\nu,q)-grid are filled only once here
-    eigenfreqs_.resize(qprot_.nkpt(), array1D(nmds_));
-    std::transform(PAR qprot_.grid().begin(), qprot_.grid().end(), eigenfreqs_.begin(), [] (auto&& q) {
-        return EigenFrequencyDrawable().interpolate_at(q);
-    });
+    prepare_eigenfreqs(eigenfreqs_);
 
     // elvelocs at (n,k) are filled only once here
     fsh_alpha_.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
-    prepare_squared_velocs(alpha_, elvelocs_alpha_, elvelocs_alpha_sq_);
+    prepare_velocs(alpha_, elvelocs_alpha_);
+    prepare_squared_velocs(elvelocs_alpha_, elvelocs_alpha_sq_);
     elvelocs_beta_ = elvelocs_alpha_;
     if (alpha_ != beta_)
     {
         fsh_beta_.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
-        prepare_squared_velocs(beta_, elvelocs_beta_, elvelocs_beta_sq_);
+        prepare_velocs(beta_, elvelocs_beta_);
+        prepare_squared_velocs(elvelocs_beta_, elvelocs_beta_sq_);
     }
 
     // fsh_alpha_ and fsh_beta_ are initialized only once here
@@ -126,9 +122,12 @@ void SpecFunc::init()
     trDOSes_.resize(epsilons_.size(), 0.0);
     array2D elvelocs_x, elvelocs_y, elvelocs_z;
     array2D elvelocs_x_sq, elvelocs_y_sq, elvelocs_z_sq;
-    prepare_squared_velocs('x', elvelocs_x, elvelocs_x_sq);
-    prepare_squared_velocs('y', elvelocs_y, elvelocs_y_sq);
-    prepare_squared_velocs('z', elvelocs_z, elvelocs_z_sq);
+    prepare_velocs('x', elvelocs_x);
+    prepare_squared_velocs(elvelocs_x, elvelocs_x_sq);
+    prepare_velocs('y', elvelocs_y);
+    prepare_squared_velocs(elvelocs_y, elvelocs_y_sq);
+    prepare_velocs('z', elvelocs_z);
+    prepare_squared_velocs(elvelocs_z, elvelocs_z_sq);
     array1D trDOSes_x(epsilons_.size()), trDOSes_y(epsilons_.size()), trDOSes_z(epsilons_.size());
     if (is_tetra_)
     {
@@ -168,17 +167,38 @@ void SpecFunc::init()
         std::cout << "\t  Time elapsed: " << t.elapsed() << " ms" << std::endl;
 }
 
-void SpecFunc::prepare_squared_velocs(char cart, array2D& elvelocs, array2D& elvelocs_sq)
+void SpecFunc::prepare_eigenfreqs(array2D& eigenfreqs)
+{
+    eigenfreqs.resize(qprot_.nkpt(), array1D(nbnd_, 0.0));
+    std::transform(PAR qprot_.grid().begin(), qprot_.grid().end(), eigenfreqs.begin(), [&] (auto&& q) {
+        return EigenFrequencyDrawable().interpolate_at(q);
+    });
+}
+
+void SpecFunc::prepare_eigenens(array2D& eigenens, const array1D& q)
+{
+    eigenens.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
+    std::transform(PAR kprot_.grid().begin(), kprot_.grid().end(), eigenens.begin(), [&] (auto&& k) {
+        return EigenValueDrawable().interpolate_at(k + q);
+    });
+}
+
+void SpecFunc::prepare_velocs(char cart, array2D& elvelocs, const array1D& q)
 {
     elvelocs.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
+    std::transform(PAR kprot_.grid().begin(), kprot_.grid().end(), elvelocs.begin(), [&] (auto&& k) {
+        return Velocities(cart).interpolate_at(k + q);
+    });
+}
+
+void SpecFunc::prepare_squared_velocs(const array2D& elvelocs, array2D& elvelocs_sq)
+{
     elvelocs_sq.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
-    std::transform(PAR kprot_.grid().begin(), kprot_.grid().end(), elvelocs.begin(),
-                [&] (auto&& k) { return Velocities(cart).interpolate_at(k); });
     std::transform(PAR elvelocs.begin(), elvelocs.end(), elvelocs_sq.begin(),
-            [] (auto&& v) {
-                auto squared_v = array1D(EigenValue::nbands, 0.0);
-                std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto&& x) { return x * x; });
-                return squared_v;
+        [] (auto&& v) {
+            auto squared_v = array1D(EigenValue::nbands, 0.0);
+            std::transform(v.begin(), v.end(), squared_v.begin(), [] (auto&& x) { return x * x; });
+            return squared_v;
     });
 }
 
@@ -604,18 +624,52 @@ SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps)
     array2D eigenens_qk(kprot_.nkpt(), array1D(nbnd, 0.0));
     array3D matels(nbnd, array2D(nbnd, array1D(kprot_.nkpt(), 0.0)));
 
+    auto q = qprot_.grid()[iq];
+
+    if (imd == 0)
+    {
+        // eigenens_qk_ at (n,k+q)-grid are filled for each iq only once here
+        prepare_eigenens(eigenens_qk_, q);
+
+        // elvelocs_qk_ at (n,k+q) are filled for each iq only once here
+        fsh_qk_alpha_.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
+        prepare_velocs(alpha_, elvelocs_qk_alpha_, q);
+        elvelocs_qk_beta_ = elvelocs_qk_alpha_;
+        if (alpha_ != beta_)
+            fsh_qk_beta_.resize(kprot_.nkpt(), array1D(nbnd_, 0.0));
+
+        // fsh_qk_alpha_ and fsh_qk_beta_ are filled for each iq only once here
+        if (epsilons_.size() > 1)
+            prepare_fsh(th_dos_, th_trdos_alpha_, elvelocs_qk_alpha_, fsh_qk_alpha_);
+        else
+        {
+            // TODO smear
+        }
+        if (alpha_ != beta_)
+        {
+            if (epsilons_.size() > 1)
+                prepare_fsh(th_dos_, th_trdos_beta_, elvelocs_qk_beta_, fsh_qk_beta_);
+            else
+            {
+                // TODO smear
+            }
+        }
+        else
+            fsh_qk_beta_ = fsh_qk_alpha_; // by default when alpha_ == beta_
+    }
+
     if (epsilons_.size() == 1)
     { // low-T case, parallel here
         std::for_each(PAR kprot_.range().begin(), kprot_.range().end(), [&] (auto&& ik)
         {
-            calc_inner_sum_in_subarray_tetra_par(ik, iq, imd, eigenens, eigenens_qk, matels);
+            calc_inner_sum_in_subarray_lowt(ik, iq, imd, eigenens, eigenens_qk, matels);
         });
     }
     else
     { // general case, thread conflicts may arise here
         std::for_each(kprot_.range().begin(), kprot_.range().end(), [&] (auto&& ik)
         {
-            calc_inner_sum_in_subarray_tetra_nopar(ik, iq, imd, eigenens, eigenens_qk, matels);
+            calc_inner_sum_in_subarray_epsilons(ik, iq, imd, eigenens, eigenens_qk, matels);
         });
     }
 
@@ -625,7 +679,7 @@ SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps)
 }
 
 void
-SpecFunc::calc_inner_sum_in_subarray_tetra_par(size_t ik, size_t iq, size_t imd,
+SpecFunc::calc_inner_sum_in_subarray_lowt(size_t ik, size_t iq, size_t imd,
                                             array2D& eigenens, array2D& eigenens_qk,
                                             array3D& matels)
 {
@@ -661,7 +715,7 @@ SpecFunc::calc_inner_sum_in_subarray_tetra_par(size_t ik, size_t iq, size_t imd,
 }
 
 void
-SpecFunc::calc_inner_sum_in_subarray_tetra_nopar(size_t ik, size_t iq, size_t imd,
+SpecFunc::calc_inner_sum_in_subarray_epsilons(size_t ik, size_t iq, size_t imd,
                                             array2D& eigenens, array2D& eigenens_qk,
                                             array3D& matels)
 {
@@ -669,51 +723,18 @@ SpecFunc::calc_inner_sum_in_subarray_tetra_nopar(size_t ik, size_t iq, size_t im
     auto q = qprot_.grid()[iq];
     auto qk = k + q;
 
-    // only fullfilled once for each q-point
-    if (imd == 0)
-    {
-        // save this to the special cached members
-        fsh_qk_alpha_.resize(EigenValue::nbands, 0.0);
-        fsh_qk_beta_.resize(EigenValue::nbands,  0.0);
-
-        eigenens_qk_ = EigenValue::interpolate_at(qk);
-        elvelocs_qk_alpha_ = Velocities(alpha_).interpolate_at(qk);
-        std::transform(eigenens_qk_.begin(), eigenens_qk_.end(), elvelocs_qk_alpha_.begin(), fsh_qk_alpha_.begin(),
-            [&] (auto&& e, auto&& v) {
-                auto DOS_mqk = th_dos_.evaluate_dos_at_value(e);
-                auto trDOS_mqk = th_trdos_alpha_.evaluate_dos_at_value(e);
-                return v / std::sqrt(trDOS_mqk / DOS_mqk);
-        });
-        
-        if (alpha_ != beta_)
-        {
-            elvelocs_qk_beta_ = Velocities(beta_).interpolate_at(qk);
-            std::transform(eigenens_qk_.begin(), eigenens_qk_.end(), elvelocs_qk_beta_.begin(), fsh_qk_beta_.begin(),
-                [&] (auto&& e, auto&& v) {
-                    auto DOS_mqk = th_dos_.evaluate_dos_at_value(e);
-                    auto trDOS_mqk = th_trdos_beta_.evaluate_dos_at_value(e);
-                    return v / std::sqrt(trDOS_mqk / DOS_mqk);
-            });
-        }
-        else
-        {
-            elvelocs_qk_beta_ = elvelocs_qk_alpha_;
-            fsh_qk_beta_ = fsh_qk_alpha_;
-        }
-    } // imd == 0
-
     size_t nbnd = high_band_ - low_band_ + 1;
     for (size_t n = 0; n < nbnd; ++n)
     {
         eigenens[ik][n] = eigenens_[ik][n + low_band_];
-        eigenens_qk[ik][n] = eigenens_qk_[n + low_band_];
+        eigenens_qk[ik][n] = eigenens_qk_[ik][n + low_band_];
 
         double fsh_kn_alpha = fsh_alpha_[ik][n + low_band_];
         double fsh_kn_beta  = fsh_beta_[ik][n + low_band_];
         for (size_t m = 0; m < nbnd; ++m)
         {
-            double fsh_qkm_alpha = fsh_qk_alpha_[m + low_band_];
-            double fsh_qkm_beta  = fsh_qk_beta_[m + low_band_];
+            double fsh_qkm_alpha = fsh_qk_alpha_[ik][m + low_band_];
+            double fsh_qkm_beta  = fsh_qk_beta_[ik][m + low_band_];
             double matel2 = EPHMatrixSquared::interpolate_at(k, q, imd, n + low_band_, m + low_band_);
             double fsh_factor = (fsh_kn_alpha - sign_*fsh_qkm_alpha)*(fsh_kn_beta - sign_pr_*fsh_qkm_beta);
             matels[n][m][ik] = matel2 * fsh_factor;
