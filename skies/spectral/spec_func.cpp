@@ -626,7 +626,7 @@ SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps)
 
     auto q = qprot_.grid()[iq];
 
-    if (imd == 0)
+    if ((imd == 0) && (ieps == 0))
     {
         // eigenens_qk_ at (n,k+q)-grid are filled for each iq only once here
         prepare_eigenens(eigenens_qk_, q);
