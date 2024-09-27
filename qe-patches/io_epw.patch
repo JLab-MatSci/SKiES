@@ -1,0 +1,21 @@
+--- io_epw.f90	2024-05-25 21:12:35.349045742 +0300
++++ io_epw_corr.f90	2024-09-27 15:08:26.335777190 +0300
+@@ -331,15 +331,15 @@
+     !
+     IF (mpime == ionode_id) THEN
+       !
+-      OPEN(UNIT = epwdata, FILE = 'epwdata.fmt', STATUS = 'old', IOSTAT = ios)
++      OPEN(UNIT = epwdata, FILE = TRIM(tmp_dir)//'epwdata.fmt', STATUS = 'old', IOSTAT = ios)
+       IF (ios /= 0) CALL errore ('epw_read', 'error opening epwdata.fmt', epwdata)
+       IF (eig_read) OPEN(UNIT = iunksdata, FILE = 'ksdata.fmt', STATUS = 'old', IOSTAT = ios)
+       IF (eig_read .AND. ios /= 0) CALL errore ('epw_read', 'error opening ksdata.fmt', iunksdata)
+       IF (vme == 'wannier') THEN
+-        OPEN(UNIT = iunvmedata, FILE = 'vmedata.fmt', STATUS = 'old', IOSTAT = ios)
++        OPEN(UNIT = iunvmedata, FILE = TRIM(tmp_dir)//'vmedata.fmt', STATUS = 'old', IOSTAT = ios)
+         IF (ios /= 0) CALL errore ('epw_read', 'error opening vmedata.fmt', iunvmedata)
+       ELSE
+-        OPEN(UNIT = iundmedata, FILE = 'dmedata.fmt', STATUS = 'old', IOSTAT = ios)
++        OPEN(UNIT = iundmedata, FILE = TRIM(tmp_dir)//'dmedata.fmt', STATUS = 'old', IOSTAT = ios)
+         IF (ios /= 0) CALL errore ('epw_read', 'error opening dmedata.fmt', iundmedata)
+       ENDIF
+       READ(epwdata,*) ef

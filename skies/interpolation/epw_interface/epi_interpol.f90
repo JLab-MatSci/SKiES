@@ -15,7 +15,6 @@ MODULE epi_interpol
     !
     USE mp,                 ONLY : mp_bcast
     USE mp_global,          ONLY : mp_startup, world_comm
-    USE mp_world,           ONLY : mpime
     USE io_epw,             ONLY : epw_read
     USE control_epw,        ONLY : wannierize
     USE epwcom,             ONLY : vme, eig_read, lifc, etf_mem, nbndsub, &

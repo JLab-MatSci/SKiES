@@ -15,19 +15,11 @@
 
 #include <launch/timer.h>
 
-#ifdef SKIES_MPI
-#include <skies/utils/mpi_wrapper.h>
-#endif
-
 #include <skies/utils/tbb_wrapper.h>
 
 using namespace skies::arrays;
 using namespace skies::bzsampling;
 using namespace skies::quantities;
-
-#ifdef SKIES_MPI
-using namespace skies::mpi;
-#endif
 
 namespace skies { namespace spectral {
 
@@ -159,12 +151,8 @@ void SpecFunc::init()
     trDOSes_ = (trDOSes_x + trDOSes_y + trDOSes_z) * (1.0 / 3.0);
 
     t.stop("\t  Transport spectral function is initialized");
-    int rank{ 0 };
-#ifdef SKIES_MPI
-    rank = mpi::rank();
-#endif
-    if (!rank)
-        std::cout << "\t  Time elapsed: " << t.elapsed() << " ms" << std::endl;
+
+    std::cout << "\t  Time elapsed: " << t.elapsed() << " ms" << std::endl;
 }
 
 void SpecFunc::prepare_eigenfreqs(array2D& eigenfreqs)
@@ -302,33 +290,6 @@ SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
     init();
 }
 
-
-/*void SpecFunc::dump_trdos_file()
-{
-     int rank{ 0 };
-#ifdef SKIES_MPI
-    rank = mpi::rank();
-#endif
-    std::ofstream os;
-    std::string fname = "VelocitiesDOS.dat";
-    if (!rank)
-    {
-        os.open(fname);
-        std::string header;
-        header += "# Generated in spectral function construnction\n";
-        if (is_tetra_)
-            header += "# smearing: tetrahedra\n";
-        else
-            header +=  "# smearing: " + std::to_string(elec_smearing_) + " ev\n";
-        header += "# velocity component: " + std::to_string(0)
-               +  "\n# electron energy [eV]               transport DOS [r.a.u.]\n";
-        os << header;
-        for (size_t i = 0; i < epsilons_.size(); ++i)
-            os << std::setprecision(6) << std::setw(12) << epsilons_[i] << std::setw(34) << trDOSes_[i] << std::endl;
-        os.close();
-    }
-}*/
-
 SpecFunc::SpecFunc(const std::string& fname)
 {
     std::ifstream ifs(fname);
@@ -359,9 +320,6 @@ SpecFunc::SpecFunc(const std::string& fname)
 
     if (ifs.good()) std::getline(ifs, line);
     size_t high_band = std::stoi(custom_split(line, ' ')[2].data());
-
-    if (ifs.good()) std::getline(ifs, line);
-    double Te = std::stod(custom_split(line, ' ')[2].data());
 
     if (ifs.good()) std::getline(ifs, line);
     EigenValue::eF = std::stod(custom_split(line, ' ')[3].data());
@@ -473,7 +431,7 @@ SpecFunc::SpecFunc(const std::string& fname)
 
     ifs.close();
 
-    Te_ = Te;
+    Te_ = 0.258;
     alpha_ = alpha;
     beta_  = beta;
     is_tetra_ = is_tetra;
@@ -643,7 +601,7 @@ SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps)
             prepare_fsh(th_dos_, th_trdos_alpha_, elvelocs_qk_alpha_, fsh_qk_alpha_);
         else
         {
-            // TODO smear
+            // TODO lowT
         }
         if (alpha_ != beta_)
         {
@@ -651,7 +609,7 @@ SpecFunc::calc_inner_sum_in_subarray_tetra(size_t iq, size_t imd, size_t ieps)
                 prepare_fsh(th_dos_, th_trdos_beta_, elvelocs_qk_beta_, fsh_qk_beta_);
             else
             {
-                // TODO smear
+                // TODO lowT
             }
         }
         else
@@ -752,7 +710,6 @@ void dump_header_lambda_file(const SpecFunc& a2f, std::ofstream& os)
 
     os << "# low_band: " << a2f.get_low_band() << std::endl;
     os << "# high_band: " << a2f.get_high_band() << std::endl;
-    os << "# elec_temp: " << a2f.get_elec_temp() << std::endl;
 
     os << "# Fermi level: " << EigenValue::eF << " eV" << std::endl;
 
@@ -799,10 +756,6 @@ void dump_header_lambda_file(const SpecFunc& a2f, std::ofstream& os)
 
 array1D SpecFunc::calc_exter_sum(double Omega)
 {
-    int rank{ 0 };
-#ifdef SKIES_MPI
-    rank = mpi::rank();
-#endif
     array1D exterSum(epsilons_.size());
     if (!is_full_)
     {
@@ -821,17 +774,13 @@ array1D SpecFunc::calc_exter_sum(double Omega)
 
         if (is_continue_calc_)
         {
-            if (!rank)
-                os.open(filename, std::ios_base::app);
+            os.open(filename, std::ios_base::app);
             inner_sum_.resize(epsilons_.size(), array2D(qprot_.nkpt(), array1D(nmds_)));
         }
         else
         {
-            if (!rank)
-            {
-                os.open(filename);
-                dump_header_lambda_file(*this, os);
-            }
+            os.open(filename);
+            dump_header_lambda_file(*this, os);
             inner_sum_.resize(epsilons_.size(), array2D(qprot_.nkpt(), array1D(nmds_, 0.0)));
         }
 
@@ -860,20 +809,19 @@ array1D SpecFunc::calc_exter_sum(double Omega)
                 array1D lambda(epsilons_.size());
                 for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
                     lambda[ieps] = inner_sum_[ieps][iq][imd] / kprot_.nkpt() / trDOSes_[ieps] / eigfreq;
-                if (!rank)
+
+                os << std::setw(5) << std::left << iq + 1 << std::right
+                << std::setw(8) << std::setprecision(3) << qpts[iq][0]
+                << std::setw(8) << std::setprecision(3) << qpts[iq][1]
+                << std::setw(8) << std::setprecision(3) << qpts[iq][2]
+                << std::setw(6) << imd + 1
+                << std::setprecision(3) << std::setw(15) << eigfreq;
+                for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
                 {
-                    os << std::setw(5) << std::left << iq + 1 << std::right
-                    << std::setw(8) << std::setprecision(3) << qpts[iq][0]
-                    << std::setw(8) << std::setprecision(3) << qpts[iq][1]
-                    << std::setw(8) << std::setprecision(3) << qpts[iq][2]
-                    << std::setw(6) << imd + 1
-                    << std::setprecision(3) << std::setw(15) << eigfreq;
-                    for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps) {
                     os << std::setprecision(5) << std::setw(15) << lambda[ieps]
                         << std::setprecision(5) << std::setw(15) << inner_sum_[ieps][iq][imd];
-                    }
-                    os << std::endl;
                 }
+                os << std::endl;
             } // modes
             is_continue_calc_ = false;
         } // qpts
@@ -883,8 +831,7 @@ array1D SpecFunc::calc_exter_sum(double Omega)
             for (size_t ieps = 0; ieps < epsilons_.size(); ++ieps)
                 exterSum[ieps] = tetrahedra::evaluate_dos(transpose(inner_sum_[ieps]), eigenfreqs_, Omega, true);
         }
-        if (!rank)
-            os.close();
+        os.close();
         is_full_ = true;
     }
     else // !is_full_
@@ -920,53 +867,42 @@ array1D SpecFunc::calc_exter_sum(double Omega)
 
 void calc_spec_func(SpecFunc& a2f, const array1D& omegas, const std::string& fname)
 {
-    int rank{ 0 };
-#ifdef SKIES_MPI
-    rank = mpi::rank();
-#endif
     std::ofstream os;
-    if (!rank)
-    {
-        os.open(fname);
-        auto array1D_to_string = [] (const array1D& arr) {
-            std::string out;
-            for (auto&& e : arr) {
-                out += std::to_string(e);
-                out += " ";
-            }
-            return out;
-        };
-        std::string header = 
-                  "# elec_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.elec_smearing()) + " eV\n"))
-                + "# phon_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.phon_smearing()) + " eV\n"))
-                + "# sign: " + std::to_string(a2f.sign())
-                + "\n# sign_pr: " + std::to_string(a2f.sign_pr())
-                + "\n# velocity component alpha: " + a2f.alpha()
-                + "\n# velocity component beta: " + a2f.beta()
-                + "\n# electron energy list [eV]: " + array1D_to_string(a2f.epsilons())
-                + "\n# DOS for energy list [1/eV/spin/cell]: "
-                + array1D_to_string(a2f.doses())
-                + "\n# transport DOS for energy list [Ry^2*bohr^2/eV]: "
-                + array1D_to_string(a2f.trans_doses())
-                + "\n#\n# Frequency [eV]        Transport Spectral Function\n";
-        os << header;
-    }
+
+    os.open(fname);
+    auto array1D_to_string = [] (const array1D& arr) {
+        std::string out;
+        for (auto&& e : arr) {
+            out += std::to_string(e);
+            out += " ";
+        }
+        return out;
+    };
+    std::string header = \
+            "# elec_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.elec_smearing()) + " eV\n"))
+            + "# phon_smearing: " + ((a2f.is_tetra()) ? "tetrahedra\n" : (std::to_string(a2f.phon_smearing()) + " eV\n"))
+            + "# sign: " + std::to_string(a2f.sign())
+            + "\n# sign_pr: " + std::to_string(a2f.sign_pr())
+            + "\n# velocity component alpha: " + a2f.alpha()
+            + "\n# velocity component beta: " + a2f.beta()
+            + "\n# electron energy list [eV]: " + array1D_to_string(a2f.epsilons())
+            + "\n# DOS for energy list [1/eV/spin/cell]: "
+            + array1D_to_string(a2f.doses())
+            + "\n# transport DOS for energy list [Ry^2*bohr^2/eV]: "
+            + array1D_to_string(a2f.trans_doses())
+            + "\n#\n# Frequency [eV]        Transport Spectral Function\n";
+    os << header;
 
     // make calculation for specific Omega
     for (auto&& Om : omegas)
     {
         auto vals = a2f.calc_spec_func(Om);
-        if (!rank)
-        {
-            os << std::left << std::setw(20) << Om << std::right;
-            for (size_t ieps = 0; ieps < a2f.epsilons().size(); ++ieps)
-                os << std::setw(15) << std::setprecision(6) << vals[ieps];
-            os << std::endl;
-        }
+        os << std::left << std::setw(20) << Om << std::right;
+        for (size_t ieps = 0; ieps < a2f.epsilons().size(); ++ieps)
+            os << std::setw(15) << std::setprecision(6) << vals[ieps];
+        os << std::endl;
     }
-
-    if (!rank)
-        os.close();
+    os.close();
 }
 
 } // spectral

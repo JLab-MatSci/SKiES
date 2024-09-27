@@ -44,7 +44,7 @@ void calc_elec_cond_inelastic(const array1D& Temps, const char* a2f_fnm, const c
 {
     IHandler ihandler(a2f_fnm);
     if (ihandler.epsilons().size() > 1)
-        throw std::runtime_error("There must be just Fermi level in inelastic formulas.");
+        throw std::runtime_error("There must be just Fermi level in low T formulas.");
     array1D resist;
     // unit cell volumes must be given in [bohr^3]
 
@@ -83,7 +83,7 @@ void calc_therm_cond_inelastic(const array1D& Temps, const char* a2f_plus_fnm, c
 {
     IHandler iplusHandler(a2f_plus_fnm), iminusHandler(a2f_minus_fnm);
     if (iplusHandler.epsilons().size() > 1 || iminusHandler.epsilons().size() > 1)
-        throw std::runtime_error("There must be just Fermi level in inelastic formulas.");
+        throw std::runtime_error("There must be just Fermi level in low T formulas.");
     array1D kappas;
 
     std::cout << 6.0 * unit_cell_vol * 100.0 / (pi * iplusHandler.transDOSes()[0] * units::Ry_in_eV * kB * hbar) << std::endl;

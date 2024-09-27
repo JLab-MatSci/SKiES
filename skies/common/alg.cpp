@@ -8,33 +8,6 @@
 
 namespace skies {
 
-std::pair<std::vector<int>, std::vector<int>>
-get_rcounts_displs(int total, int nchunks)
-{
-    if (total < nchunks)
-        throw std::runtime_error("Number of chuncks must be less or equal than total number of elements to decompose\n");
-
-    int ave = total / nchunks;
-    int res = total % nchunks;
-
-    std::vector<int> rcounts(nchunks);
-    std::vector<int> displs(nchunks);
-
-    for (int k = 0; k < nchunks; ++k) {
-        if (k < res)
-            rcounts[k] = ave + 1;
-        else
-            rcounts[k] = ave;
-        if (k == 0)
-            displs[k] = 0;
-        else
-            displs[k] = displs[k-1] + rcounts[k-1];
-    }
-
-    auto output = std::make_pair(rcounts, displs);
-    return output;
-}
-
 std::vector<std::string>
 custom_split_regex(const std::string& str, const std::string& separator)
 {

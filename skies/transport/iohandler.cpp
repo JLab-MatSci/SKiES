@@ -118,7 +118,7 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
             ofs_ << "# Resistivity [muOm cm]" << std::endl;
             ofs_ << "#  Te [K]  \\  Ti [K]:";
             for (auto&& Ti : ion_Temps_)
-                ofs_ << std::setprecision(1) << std::setw(12) << Ti;
+                ofs_ << /*std::setprecision(1) <<*/ std::setw(12) << Ti;
             ofs_ << std::endl;
         }
         break;
@@ -144,7 +144,7 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
         }
         else
         {
-            ofs_ << "# Thermal Resistivity [W/cm/K]" << std::endl;
+            ofs_ << "# Thermal Conductivity [W/cm/K]" << std::endl;
             ofs_ << "#  Te [K]  \\  Ti [K]:";
             for (auto&& Ti : ion_Temps_)
                 ofs_ << std::setw(12) << Ti;

@@ -22,12 +22,6 @@ Configure project settings pressing [c].
  CMAKE_BUILD_TYPE                Release                                 # choose the build type (pressing Enter)
  CMAKE_INSTALL_PREFIX            /home/user/soft/qe/install              # choose the install folder (an example
                                                                          # given here)
- QE_ENABLE_MPI                   OFF                                     # it is recommended to disable MPI in
-                                                                         # the pathced version of QE to avoid
-                                                                         # some conflicts with the TBB
-                                                                         # library used in SKiES (no MPI routines
-                                                                         # are actually used in EPW Wannier
-                                                                         # interpolation)
  QE_FFTW_VENDOR                  Internal                                # We highly recommend set this to 
                                                                          # "Internal" for the subsequent correct
                                                                          # integration of FFTW library into SKiES # via CMake configuration files
@@ -56,15 +50,16 @@ Configure project settings pressing [c].
  Mbd_DIR                         /home/user/soft/qe/install/lib/cmake/mbd       # path to the MbdConfig.cmake
                                                                                 # installed by cmake in QE
                                                                                 # (an example given)
- SKIES_ENABLE_DOC                ON                                             # create documentation
- SKIES_ENABLE_EXAMPLES           ON                                             # install some ready-to-launch
-                                                                                # examples
+ TBB_DIR                         /home/user/soft/tbb/lib/cmake/tbb              # path to the TBBConfig.cmake
+                                                                                # installed by cmake in TBB lib
+                                                                                # (an example given)
+ SKIES_ENABLE_DOC                OFF                                            # create documentation
  SKIES_ENABLE_TBB                ON                                             # install TBB parallel version of
                                                                                 # the code
- SKIES_ENABLE_TESTS              ON                                             # build and install tests
+ SKIES_ENABLE_TESTS              OFF                                            # build and install tests
 ```
 
-**IMPORTANT NOTE**. The Fortran compiler used to build QE project must be the same as used to build SKiES. Also it must be compatible with C++ compiler used. If there are some issues at configuration step, try pressing [t] and manually changing  MPI_CXX_COMPILER and MPI_Fortran_COMPILER.
+**IMPORTANT NOTE**. The Fortran compiler used to build QE project must be the same as used to build SKiES. Also it must be compatible with C++ compiler used. If there are some issues at configuration step, try pressing [t] and manually changing CXX_COMPILER and Fortran_COMPILER.
 
 After configuration step press [c] again until there is [g] option is available. Press [g] to generate the project. 
 

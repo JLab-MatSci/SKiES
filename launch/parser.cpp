@@ -4,9 +4,7 @@
 
 namespace skies { namespace launch {
 
-void parse_opts(int argc, char* argv[],
-                  std::vector<std::string>& args,
-	              std::unordered_map<std::string, std::string>& opts)
+void parse_opts(int argc, char* argv[], TArgs& args, TOpts& opts)
 {
 	bool wait_for_opts{ true };
 	for (int i = 1; i < argc; ++i) 
@@ -19,17 +17,14 @@ void parse_opts(int argc, char* argv[],
 			if (opt[1] != '-')
                 throw std::runtime_error("Options which start with '--' are only supported\n");
 			if (opt.length() == 2)
-            {
-				// this is '--'. Switch off expect_options
 				wait_for_opts = false;
-			}
             else
             {
-				size_t eq_pos = opt.find_first_of("=");
-				if (eq_pos == std::string::npos)
+				size_t p = opt.find_first_of("=");
+				if (p == std::string::npos)
 					opts[opt.substr(2)] = "true";
 				else
-					opts[opt.substr(2, eq_pos - 2)] = opt.substr(eq_pos + 1);
+					opts[opt.substr(2, p - 2)] = opt.substr(p + 1);
 			}
 		}
         else

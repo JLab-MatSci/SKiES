@@ -1,27 +1,58 @@
 #pragma once
 
-#include <vector>
-#include <string>
-#include <unordered_map>
+#include <launch/types.h>
 
 namespace skies { namespace launch {
 
-#define CMD(cmd_name, descr, how_to) \
-	if(cmd == "list" && !rank) \
-		std::cout << "    "  << cmd_name << ": " << descr << '\n'; \
-	else if((args.size() == 1) && (cmd == "help") && (args[0] == cmd_name) && !rank) \
-		{std::cout << "Usage: \n" << how_to; cmd_found = true; } \
-	else if (cmd == cmd_name) { cmd_found = true;
+enum class CMD {
+	dummy,
+	help,
+	list,
+	dos,
+	phdos,
+	trdos,
+	bands,
+	phonons,
+	elphmat,
+	velocs,
+	a2f,
+	resist,
+	thermal_cond,
+	seebeck
+};
 
-#define CMD_END }
+CMD str_to_CMD(const std::string& cmd);
 
-void exec_cmd(const std::string& cmd,
-	         std::vector<std::string>& args,
-	         std::unordered_map<std::string, std::string>& opts);
+std::string CMD_to_str(CMD cmd);
 
-bool resolve_cmd(const std::string& cmd,
-                 std::vector<std::string>& args,
-                 std::unordered_map<std::string, std::string>& opts);
+void help_for_cmd(CMD cmd);
+
+void resolve_cmd(CMD cmd, const TArgs& args, TOpts& opts);
+
+void help_for_dos();
+void help_for_phdos();
+void help_for_trdos();
+void help_for_bands();
+void help_for_phonons();
+void help_for_elphmat();
+void help_for_velocs();
+void help_for_a2f();
+void help_for_resist();
+void help_for_thermal_cond();
+void help_for_seebeck();
+
+void cmd_list();
+void cmd_dos(TOpts& opts);
+void cmd_phdos(TOpts& opts);
+void cmd_trdos(TOpts& opts);
+void cmd_bands(TOpts& opts);
+void cmd_phonons(TOpts& opts);
+void cmd_elphmat(TOpts& opts);
+void cmd_velocs(TOpts& opts);
+void cmd_a2f(TOpts& opts);
+void cmd_resist(TOpts& opts);
+void cmd_thermal_cond(TOpts& opts);
+void cmd_seebeck(TOpts& opts);
 
 } // launch
 } // skies

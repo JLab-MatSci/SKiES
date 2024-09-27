@@ -5,13 +5,8 @@
 #include <cassert>
 #include <iostream>
 
-#ifdef SKIES_MPI
-#include <skies/utils/mpi_wrapper.h>
-#endif
-
 namespace skies { namespace launch {
 
-// milliseconds, microsecond and nanoseconds
 constexpr double msec_per_sec = 1000.0;
 constexpr double usec_per_sec = msec_per_sec * msec_per_sec;
 constexpr double nsec_per_sec = msec_per_sec * msec_per_sec * msec_per_sec;
@@ -25,24 +20,14 @@ public:
       assert(!is_started);
       is_started = true;
       start_ = std::chrono::high_resolution_clock::now();
-
-      int rank{ 0 };
-#ifdef SKIES_MPI
-      rank = skies::mpi::rank();
-#endif
-      if (!rank) std::cout << text << std::endl;
+      std::cout << text << std::endl;
   }
 
   void stop(const std::string& text = "") {
       assert(is_started);
       is_started = false;
       stop_ = std::chrono::high_resolution_clock::now();
-      
-      int rank{ 0 };
-#ifdef SKIES_MPI
-      rank = skies::mpi::rank();
-#endif
-      if (!rank) std::cout << text << std::endl;
+      std::cout << text << std::endl;
   }
 
   unsigned elapsed() {
@@ -63,11 +48,7 @@ public:
   }
 
   void print_elapsed(const std::string& text) {
-      int rank{ 0 };
-#ifdef SKIES_MPI
-      rank = skies::mpi::rank();
-#endif
-      if (!rank) std::cout << text << elapsed() << " ms" << std::endl;
+      std::cout << text << elapsed() << " ms" << std::endl;
   }
 
 

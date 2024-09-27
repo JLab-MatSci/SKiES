@@ -1,7 +1,6 @@
 set(TEST_SOURCES ndimarrayTest.cpp
                  solveEqBisectTest.cpp
                  customSplitTest.cpp
-                 mpiDecompTest.cpp
                  kpProtocolTest.cpp
 )
 

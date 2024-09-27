@@ -51,7 +51,7 @@ void evaluate_along_kp_path(const kpLabelCoords& kp_path,
     auto Bmat = Lattprotocol::calc_inv_cell();
 
     double mileage{ 0.0 };
-    std::ofstream klabels("KLABELS");
+    std::ofstream klabels("Klabels");
     klabels << std::right;
     klabels << std::setw(7) << "# Label    ";
     klabels << std::setw(19) << "Distance [Angstrom]";
@@ -66,7 +66,7 @@ void evaluate_along_kp_path(const kpLabelCoords& kp_path,
     auto kp_end = std::prev(kp_path.end());
     for (auto it = kp_path.begin(); it != kp_end; ++it) // loop over all segments
     {
-        // write to KLABELS file
+        // write to Klabel file
         auto label = it->first;
         klabels << std::setw(7) << label;
         klabels << std::setw(23) << std::setprecision(6) << mileage;

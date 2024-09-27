@@ -17,7 +17,7 @@ MODULE epi_initialize
     USE mp_pools,           ONLY : npool
     USE mp_images,          ONLY : nimage
     USE parallel_include
-    USE mp_world,           ONLY : mpime, mp_world_start, world_comm, mp_world_end
+    USE mp_world,           ONLY : mpime, world_comm
     USE io_epw,             ONLY : epw_read
     USE control_epw,        ONLY : wannierize
     USE epwcom,             ONLY : vme, eig_read, lifc, etf_mem, nbndsub, use_ws, &
@@ -155,41 +155,20 @@ MODULE epi_initialize
     CONTAINS
     !
     !
-    SUBROUTINE epi_init(rank) bind(C, name='epiInit')
+    SUBROUTINE epi_init() bind(C, name='epiInit')
       !
         IMPLICIT NONE
-        INTEGER(c_int), INTENT(IN) :: rank
-        ! INTEGER(c_int) :: use_ws_int
-        ! INTEGER(c_int) :: nkc1, nkc2, nkc3, nqc1, nqc2, nqc3
+        !INTEGER(c_int), INTENT(IN) :: rank
         !
         REAL(KIND = DP), ALLOCATABLE :: w_centers(:, :)
         !! Wannier centers
         !
         gamma_only = .FALSE.
         !
-        meta_ionode = (rank == 0)
+        !meta_ionode = (rank == 0)
+        meta_ionode = .TRUE.
         CALL epw_readin()
-        ! vme = 'wannier'
-        ! lifc = .FALSE.
-        ! etf_mem = 1
-        ! eig_read = .FALSE.
-        ! epwread = .TRUE.
-        ! epbread = .FALSE.
-        ! wannierize = .FALSE.
-        ! longrange = .FALSE.
-
-        ! lpolar = .FALSE.
-        ! lphase = .FALSE.
-        ! system_2d  = .FALSE.
-        ! qrpl = .FALSE.
-        ! use_ws = .FALSE.
-        ! nkc1 = 6
-        ! nkc2 = 6
-        ! nkc3 = 6
-        ! nqc1 = 6
-        ! nqc2 = 6
-        ! nqc3 = 6
-        ! use_ws_int = .FALSE.
+        !
         ! !
         ALLOCATE(w_centers(3, nbndsub), STAT = ierr)
         IF (ierr /= 0) CALL errore('epi_init', 'Error allocating w_centers', 1)
@@ -279,7 +258,7 @@ MODULE epi_initialize
       !
       IF (mpime == ionode_id) THEN
         !
-        OPEN(UNIT = crystal, FILE = 'crystal.fmt', STATUS = 'old', IOSTAT = ios)
+        OPEN(UNIT = crystal, FILE = TRIM(tmp_dir)//'crystal.fmt', STATUS = 'old', IOSTAT = ios)
         IF (ios /= 0) CALL errore('read_crystal_info', 'error opening crystal.fmt', crystal)
         READ(crystal, *) nat
         READ(crystal, *) nmodes

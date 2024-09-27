@@ -9,10 +9,6 @@
 #include <skies/quantities/elvelocs.h>
 #include <skies/quantities/eigenfreqs.h>
 
-#ifdef SKIES_MPI
-#include <skies/utils/mpi_wrapper.h>
-#endif
-
 #include <skies/utils/tbb_wrapper.h>
 
 namespace skies { namespace tetrahedra {
@@ -148,16 +144,9 @@ void evaluate_dos(const arrays::array1D& range)
         return th.evaluate_dos_at_value(v);
     });
 
-    int rank{ 0 };
-#ifdef SKIES_MPI
-    rank = skies::mpi::rank();
-#endif
-    if (!rank)
-    {
-        for (size_t i = 0; i < range.size(); ++i)
-            os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
-        os.close();
-    }
+    for (size_t i = 0; i < range.size(); ++i)
+        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
+    os.close();
 }
 
 void evaluate_phdos(const arrays::array1D& range)
@@ -184,16 +173,9 @@ void evaluate_phdos(const arrays::array1D& range)
         return th.evaluate_dos_at_value(v);
     });
 
-    int rank{ 0 };
-#ifdef SKIES_MPI
-    rank = skies::mpi::rank();
-#endif
-    if (!rank)
-    {
-        for (size_t i = 0; i < range.size(); ++i)
-            os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
-        os.close();
-    }
+    for (size_t i = 0; i < range.size(); ++i)
+        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
+    os.close();
 }
 
 void evaluate_trdos(const arrays::array1D& range)
@@ -250,16 +232,9 @@ void evaluate_trdos(const arrays::array1D& range)
     trDOSes = (trDOSes_x + trDOSes_y + trDOSes_z) * (1.0 / 3.0);
     trDOSes = trDOSes * units::Ry_in_eV; // go to [r.a.u.]
 
-    int rank{ 0 };
-#ifdef SKIES_MPI
-    rank = skies::mpi::rank();
-#endif
-    if (!rank)
-    {
-        for (size_t i = 0; i < range.size(); ++i)
-            os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << trDOSes[i] << std::endl;
-        os.close();
-    }
+    for (size_t i = 0; i < range.size(); ++i)
+        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << trDOSes[i] << std::endl;
+    os.close();
 }
 
 double TetraHandler::evaluate_dos_at(size_t ik, size_t n, double value, bool use_qprot) const

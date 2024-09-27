@@ -1,0 +1,146 @@
+--- wan2bloch_.f90	2022-06-14 19:16:48.000000000 +0300
++++ wan2bloch.f90	2024-08-17 01:43:18.000000000 +0300
+@@ -119,7 +119,7 @@
+     COMPLEX(KIND = DP), ALLOCATABLE :: Uk(:, :)
+     !! Rotation matrix on the full space
+     !
+-    CALL start_clock('HamW2B')
++    !CALL start_clock('HamW2B')
+     !----------------------------------------------------------
+     !  STEP 3: inverse Fourier transform to fine k and k+q meshes
+     !----------------------------------------------------------
+@@ -278,7 +278,7 @@
+     cuf = CONJG(TRANSPOSE(cz))
+     eig = w
+     !
+-    CALL stop_clock('HamW2B')
++    !CALL stop_clock('HamW2B')
+     !
+     !--------------------------------------------------------------------------
+     END SUBROUTINE hamwan2bloch
+@@ -352,7 +352,7 @@
+     COMPLEX(KIND = DP) :: cfac
+     !! Complex prefactor for Fourier transform.
+     !
+-    CALL start_clock ('DynW2B')
++    !CALL start_clock ('DynW2B')
+     !----------------------------------------------------------
+     !  STEP 3: inverse Fourier transform to fine k and k+q meshes
+     !----------------------------------------------------------
+@@ -459,7 +459,7 @@
+     cuf = cz
+     eig = w
+     !
+-    CALL stop_clock('DynW2B')
++    !CALL stop_clock('DynW2B')
+     !
+     !--------------------------------------------------------------------------
+     END SUBROUTINE dynwan2bloch
+@@ -558,7 +558,7 @@
+     COMPLEX(KIND = DP) :: dyn(3, 3, nat, nat)
+     !! Dynamical matrix
+     !
+-    CALL start_clock('DynW2B')
++    !CALL start_clock('DynW2B')
+     !
+     xq = xxq
+     ! bring xq in cart. coordinates
+@@ -711,7 +711,7 @@
+     cuf = cz
+     eig = w
+     !
+-    CALL stop_clock('DynW2B')
++    !CALL stop_clock('DynW2B')
+     !
+     !--------------------------------------------------------------------------
+     END SUBROUTINE dynifc2blochf
+@@ -1104,7 +1104,7 @@
+     !
+     ! Initialization
+     !
+-    CALL start_clock('vmewan2bloch')
++    !CALL start_clock('vmewan2bloch')
+     !
+     cvmef_tmp(:, :) = czero
+     cvmef(:, :, :)  = czero
+@@ -1319,7 +1319,7 @@
+       !
+     ENDIF
+     !
+-    CALL stop_clock('vmewan2bloch')
++    !CALL stop_clock('vmewan2bloch')
+     !--------------------------------------------------------------------------
+     END SUBROUTINE vmewan2bloch
+     !--------------------------------------------------------------------------
+@@ -1456,7 +1456,7 @@
+     !
+     ! Initialization
+     !
+-    CALL start_clock('vmewan2blochp')
++    !CALL start_clock('vmewan2blochp')
+     !
+     vmefp(:, :, :)  = czero
+     chf_a_tmp(:, :) = czero
+@@ -1704,7 +1704,7 @@
+       ENDDO !ideg
+     ENDIF
+     !
+-    CALL stop_clock('vmewan2blochp')
++    !CALL stop_clock('vmewan2blochp')
+     !
+     !--------------------------------------------------------------------------
+     END SUBROUTINE vmewan2blochp
+@@ -1798,7 +1798,7 @@
+     COMPLEX(KIND = DP), ALLOCATABLE :: epmatw(:, :, :, :)
+     !! El-ph matrix elements
+     !
+-    CALL start_clock('ephW2Bp')
++    !CALL start_clock('ephW2Bp')
+     !
+     !----------------------------------------------------------
+     !  STEP 3: inverse Fourier transform of g to fine k mesh
+@@ -2014,7 +2014,7 @@
+     Call ZGEMM('n', 'n', nbnd * nbnd * nrr_k, nmodes, nmodes, cone, eptmp, &
+                 nbnd * nbnd * nrr_k, cuf, nmodes, czero, epmatf, nbnd * nbnd * nrr_k)
+     !
+-    CALL stop_clock('ephW2Bp')
++    !CALL stop_clock('ephW2Bp')
+     !
+     !---------------------------------------------------------------------------
+     END SUBROUTINE ephwan2blochp
+@@ -2063,7 +2063,7 @@
+     !! Counter on  phonon modes
+     COMPLEX(KIND = DP) :: eptmp(nbnd, nbnd)
+     !! Temporary variable
+-    CALL start_clock('ephW2B')
++    !CALL start_clock('ephW2B')
+     !
+     !----------------------------------------------------------
+     !  STEP 3: inverse Fourier transform of g to fine k mesh
+@@ -2112,7 +2112,7 @@
+            nbnd, cufkk, nbnd, czero, epmatf(:, :, imode), nbnd)
+       !
+     ENDDO
+-    CALL stop_clock('ephW2B')
++    !CALL stop_clock('ephW2B')
+     !
+     !---------------------------------------------------------------------------
+     END SUBROUTINE ephwan2bloch
+@@ -2290,7 +2290,7 @@
+     COMPLEX(KIND = DP), ALLOCATABLE :: epmatw(:, :, :)
+     !! El-ph matrix elements
+     !
+-    CALL start_clock('ephW2Bp')
++    !CALL start_clock('ephW2Bp')
+     !----------------------------------------------------------
+     !  STEP 3: inverse Fourier transform of g to fine k mesh
+     !----------------------------------------------------------
+@@ -2391,7 +2391,7 @@
+     IF (ierr /= 0) CALL errore('ephwan2blochp_mem', 'error in MPI_FILE_CLOSE', 1)
+ #endif
+     !
+-    CALL stop_clock('ephW2Bp')
++    !CALL stop_clock('ephW2Bp')
+     !
+     !--------------------------------------------------------------------------
+     END SUBROUTINE ephwan2blochp_mem

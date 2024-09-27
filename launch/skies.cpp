@@ -6,9 +6,6 @@
 #include <launch/parser.h>
 #include <launch/commands.h>
 
-#ifdef SKIES_MPI
-#include <skies/utils/mpi_wrapper.h>
-#endif
 #include <skies/quantities/eigenvals.h>
 #include <skies/lattices/latt_protocol.h>
 
@@ -18,7 +15,7 @@
 extern "C" {
 #endif
 
-void epiInit(int* rank);
+void epiInit();
 void epiFinalize();
 
 #ifdef __cplusplus
@@ -37,40 +34,18 @@ void print_name()
 	std::cout << "SKiES software v.1.0.0\n(C) 2024 Galtsov Ilya, Minakov Dmitry, Fokin Vladimir, Levashov Pavel (JIHT RAS)\n\n";
 }
 
-void print_numproc(int nproc)
-{
-#ifdef SKIES_MPI
-	std::cout << "Parallel MPI version. Launched on " << nproc  << " processors" << std::endl << std::endl;
-#else
-	std::cout << "Serial MPI version launched" << std::endl << std::endl;
-#endif
+int main(int argc, char **argv)
+try {
+	skies::launch::Timer t;
+	t.start();
+
+	print_name();
 #ifdef SKIES_TBB
 	std::cout << "TBB version launched" << std::endl << std::endl;
 #else
 	std::cout << "No TBB version launched" << std::endl << std::endl;
 #endif
-}
-
-int main(int argc, char **argv)
-try {
-#ifdef SKIES_MPI
-	skies::mpi::init(&argc, &argv);
-#endif
-	int rank{ 0 };
-	int nproc{ 1 };
-#ifdef SKIES_MPI
-	rank = skies::mpi::rank();
-	nproc = skies::mpi::size();
-#endif
-	skies::launch::Timer t;
-	t.start();
-
-    if (!rank)
-	{
-		print_name();
-		print_numproc(nproc);
-		t.print_start("The program started at ");
-	}
+	t.print_start("The program started at ");
 
 	std::vector<std::string> args;
 	std::unordered_map<std::string, std::string> opts;
@@ -79,24 +54,18 @@ try {
 
 	if (cmd != "help" && cmd != "list")
 	{
-		if (!rank) std::cout << "======== Some standard output from QE EPW:" << std::endl;
-		epiInit(&rank);
+		std::cout << "======== Some standard output from QE EPW:" << std::endl;
+		epiInit();
 	}
 	skies::launch::parse_opts(argc - 1, argv + 1, args, opts);
-	skies::launch::exec_cmd(cmd, args, opts);
+	if ((cmd == "help") && (args.size() == 1))
+		skies::launch::help_for_cmd(skies::launch::str_to_CMD(args[0]));
+	skies::launch::resolve_cmd(skies::launch::str_to_CMD(cmd), args, opts);
 
 	t.stop();
-	if (!rank)
-	{
-		t.print_stop("SKiES finished successfully at ");
-		std::cout << "Total work time: " << t.elapsed() << " ms" << std::endl;
-	}
+	t.print_stop("SKiES finished successfully at ");
+	std::cout << "Total work time: " << t.elapsed() << " ms" << std::endl;
 
-#ifdef SKIES_MPI
-	if (cmd != "help" && cmd != "list")
-		epiFinalize();
-	skies::mpi::finalize();
-#endif
 } catch (std::runtime_error& err) {
 	std::cout << "\nERROR: " << err.what() << std::endl;
 } catch (std::invalid_argument& err) {

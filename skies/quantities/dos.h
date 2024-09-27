@@ -8,9 +8,6 @@
 #include <fstream>
 #include <numeric>
 
-#ifdef SKIES_MPI
-#include <skies/utils/mpi_wrapper.h>
-#endif
 #include <skies/utils/tbb_wrapper.h>
 #include <skies/quantities/eigenfreqs.h>
 #include <skies/quantities/elvelocs.h>
@@ -156,16 +153,9 @@ void evaluate_dos(const arrays::array2D& grid,
         return evaluate_dos_at_value<Quan>(v, smearing, sampl_type, values, weights);
     });
 
-    int rank{ 0 };
-#ifdef SKIES_MPI
-    rank = skies::mpi::rank();
-#endif
-    if (!rank)
-    {
-        for (size_t i = 0; i < range.size(); ++i)
-            os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << DOSes[i] << std::endl;
-        os.close();
-    }
+    for (size_t i = 0; i < range.size(); ++i)
+        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << DOSes[i] << std::endl;
+    os.close();
     return;
 }
 

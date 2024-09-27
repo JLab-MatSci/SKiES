@@ -4,10 +4,6 @@ add_executable(skies
 	       ${CMAKE_CURRENT_SOURCE_DIR}/commands.cpp
 )
 
-if (SKIES_ENABLE_MPI)
-	target_link_libraries(skies PRIVATE skies_mpi_wrapper)
-endif()
-
 if (SKIES_ENABLE_TBB)
 	target_link_libraries(skies PRIVATE TBB::tbb)
 endif()

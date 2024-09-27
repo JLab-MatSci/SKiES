@@ -4,11 +4,6 @@ set_target_properties(skies_interface PROPERTIES
                       EXPORT_NAME interface
 )
 
-if (SKIES_ENABLE_MPI)
-    add_subdirectory(utils)
-    target_link_libraries(skies_interface INTERFACE skies_mpi_wrapper)
-endif()
-
 if (SKIES_ENABLE_TBB)
     target_link_libraries(skies_interface INTERFACE TBB::tbb)
 endif()
