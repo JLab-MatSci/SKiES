@@ -9,8 +9,7 @@ namespace skies { namespace transport {
 enum class ResistType 
 {
     Electrical,
-    Thermal,
-    Seebeck
+    Thermal
 };
 
 class IHandler {

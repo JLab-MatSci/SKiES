@@ -44,9 +44,9 @@ MODULE epi_interpol
     !
     CONTAINS 
     !
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!!        These subroutines are parts of the elphwan_shuffle.f90 file        !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!        These subroutines are mostly adopted from parts of the elphwan_shuffle.f90 EPW file        !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
     !
     ! adaptor functions to use in iso_c_binding
     !
@@ -103,6 +103,7 @@ MODULE epi_interpol
       ! epmat : Wannier el and Wannier ph -> Wannier el and Bloch ph
       ! --------------------------------------------------------------
       !
+      ! Due to possible problems with multithreaded execution
       CALL ephwan2blochp_(nmodes, q, irvec_g, ndegen_g, nrr_g, uf, epmatwef, nbndsub, nrr_k, dims, dims2)
       !
     END SUBROUTINE interpolate_eigen_freq_at
@@ -430,9 +431,12 @@ MODULE epi_interpol
     !
     !
     SUBROUTINE ephwan2blochp_(nmodes, xxq, irvec_g, ndegen_g, nrr_g, cuf, epmatf, nbnd, nrr_k, dims, nat)
-      !!
-      !!   Adopted from similar subroutine in wan2bloch.f90
-      !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!                                                         !!
+      !!   Adopted from similar subroutine in wan2bloch.f90      !!
+      !!   to avoid possible problems in multithreaded regime    !!
+      !!                                                         !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       USE kinds,            ONLY : DP
       USE epwcom,           ONLY : etf_mem, use_ws
       USE elph2,            ONLY : epmatwp

@@ -31,7 +31,7 @@ void print_name()
 	std::cout << "/\\__/ / |\\  \\ | |___/\\__/ /" << std::endl;
 	std::cout << "\\____/\\_| \\_/_\\____/\\____/" << std::endl;
 	std::cout << std::endl;
-	std::cout << "SKiES software v.1.0.0\n(C) 2024 Galtsov Ilya, Minakov Dmitry, Fokin Vladimir, Levashov Pavel (JIHT RAS)\n\n";
+	std::cout << "SKiES software v.1.0.0\n(C) 2024 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)\n\n";
 }
 
 int main(int argc, char **argv)
@@ -64,7 +64,7 @@ try {
 
 	t.stop();
 	t.print_stop("SKiES finished successfully at ");
-	std::cout << "Total work time: " << t.elapsed() << " ms" << std::endl;
+	std::cout << "Total work time: " << t.elapsed() << " s" << std::endl;
 
 } catch (std::runtime_error& err) {
 	std::cout << "\nERROR: " << err.what() << std::endl;

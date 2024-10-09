@@ -110,6 +110,7 @@ double evaluate_dos_at_value(double value,
 
 void evaluate_trdos(const arrays::array2D& grid,
                     const arrays::array1D& range,
+                    char alpha,
                     double smearing,
                     bzsampling::SamplingFunc sampl_type);
 

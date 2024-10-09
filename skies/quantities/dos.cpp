@@ -1,3 +1,13 @@
+/*-----------------------------------------------------------------------
+    * SKiES - Solver of Kinetic Equation for Solids
+    * (C) 2024 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)
+    *
+    * SKiES may only be utilized for non-profit research.
+    * Citing appropriate sources is required when using SKiES.
+    * 
+    * Distribution of this file is permitted by the GNU General Public License.
+    * Examine the `LICENSE' file located in the current distribution's root directory.
+------------------------------------------------------------------------- */
 #include <skies/quantities/dos.h>
 #include <skies/utils/tbb_wrapper.h>
 
@@ -33,6 +43,7 @@ double evaluate_smeared_trdos_at_value(double value,
 
 void evaluate_trdos(const arrays::array2D& grid,
                     const array1D& range,
+                    char alpha,
                     double smearing,
                     bzsampling::SamplingFunc sampl_type)
 {
@@ -40,7 +51,7 @@ void evaluate_trdos(const arrays::array2D& grid,
     os << std::right;
     os << std::setw(12) << "# Energy, eV";
     os << std::setw(25) << "Transport DOS";
-    os << std::setw(24) << " [13.605685 * Ry bohr^2]";
+    os << std::setw(24) << " [r.a.u.]";
     os << std::endl;
 
     auto nkpt = grid.size();
@@ -62,25 +73,13 @@ void evaluate_trdos(const arrays::array2D& grid,
         });
     };
 
-    array2D elvelocs_x, elvelocs_y, elvelocs_z;
-    array2D elvelocs_x_sq, elvelocs_y_sq, elvelocs_z_sq;
-    prepare_velocs('x', elvelocs_x, elvelocs_x_sq);
-    prepare_velocs('y', elvelocs_y, elvelocs_y_sq);
-    prepare_velocs('z', elvelocs_z, elvelocs_z_sq);
+    array2D elvelocs_alpha, elvelocs_alpha_sq;
+    prepare_velocs(alpha, elvelocs_alpha, elvelocs_alpha_sq);
 
     array1D trDOSes(range.size());
-    array1D trDOSes_x(range.size()), trDOSes_y(range.size()), trDOSes_z(range.size());
-
-    std::transform(range.begin(), range.end(), trDOSes_x.begin(), [&] (auto&& eps) {
-        return evaluate_trdos_at_value(eps, smearing, sampl_type, eigenens, elvelocs_x_sq);
+    std::transform(range.begin(), range.end(), trDOSes.begin(), [&] (auto&& eps) {
+        return evaluate_trdos_at_value(eps, smearing, sampl_type, eigenens, elvelocs_alpha_sq);
     });
-    std::transform(range.begin(), range.end(), trDOSes_y.begin(), [&] (auto&& eps) {
-        return evaluate_trdos_at_value(eps, smearing, sampl_type, eigenens, elvelocs_y_sq);
-    });
-    std::transform(range.begin(), range.end(), trDOSes_z.begin(), [&] (auto&& eps) {
-        return evaluate_trdos_at_value(eps, smearing, sampl_type, eigenens, elvelocs_z_sq);
-    });
-    trDOSes = (trDOSes_x + trDOSes_y + trDOSes_z) * (1.0 / 3.0);
     trDOSes = trDOSes * units::Ry_in_eV; // go to [r.a.u.]
 
     for (size_t i = 0; i < range.size(); ++i)

@@ -110,49 +110,27 @@ void SpecFunc::init()
     }
 
     // calculate trDOS for range of given epsilons
-    // explicitly evaluate transport DOS for each of x, y and z components and take average of the three
     trDOSes_.resize(epsilons_.size(), 0.0);
-    array2D elvelocs_x, elvelocs_y, elvelocs_z;
-    array2D elvelocs_x_sq, elvelocs_y_sq, elvelocs_z_sq;
-    prepare_velocs('x', elvelocs_x);
-    prepare_squared_velocs(elvelocs_x, elvelocs_x_sq);
-    prepare_velocs('y', elvelocs_y);
-    prepare_squared_velocs(elvelocs_y, elvelocs_y_sq);
-    prepare_velocs('z', elvelocs_z);
-    prepare_squared_velocs(elvelocs_z, elvelocs_z_sq);
-    array1D trDOSes_x(epsilons_.size()), trDOSes_y(epsilons_.size()), trDOSes_z(epsilons_.size());
+
+    // just use alpha component as a dummy choice. I don't know what trDOS(x,y) actually is.
     if (is_tetra_)
     {
-        tetrahedra::TetraHandler th_x(transpose(elvelocs_x_sq), transpose(eigenens_));
-        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_x.begin(), [th = std::move(th_x)] (auto&& eps) {
-            return th.evaluate_dos_at_value(eps);
-        });
-        tetrahedra::TetraHandler th_y(transpose(elvelocs_y_sq), transpose(eigenens_));
-        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_y.begin(), [th = std::move(th_y)] (auto&& eps) {
-            return th.evaluate_dos_at_value(eps);
-        });
-        tetrahedra::TetraHandler th_z(transpose(elvelocs_z_sq), transpose(eigenens_));
-        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_z.begin(), [th = std::move(th_z)] (auto&& eps) {
+        std::transform(epsilons_.begin(), epsilons_.end(),
+                       trDOSes_.begin(), [th = std::move(th_trdos_alpha_)] (auto&& eps) {
             return th.evaluate_dos_at_value(eps);
         });
     }
-    else // is_tetra
+    else
     {
-        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_x.begin(), [&] (auto&& eps) {
-            return evaluate_trdos_at_value(eps, elec_smearing_, elec_sampling_, eigenens_, elvelocs_x_sq);
-        });
-        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_y.begin(), [&] (auto&& eps) {
-            return evaluate_trdos_at_value(eps, elec_smearing_, elec_sampling_, eigenens_, elvelocs_y_sq);
-        });
-        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_z.begin(), [&] (auto&& eps) {
-            return evaluate_trdos_at_value(eps, elec_smearing_, elec_sampling_, eigenens_, elvelocs_z_sq);
+        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_.begin(), [&] (auto&& eps) {
+            return evaluate_trdos_at_value(eps, elec_smearing_, elec_sampling_,
+                                           eigenens_, elvelocs_alpha_sq_);
         });
     }
-    trDOSes_ = (trDOSes_x + trDOSes_y + trDOSes_z) * (1.0 / 3.0);
 
     t.stop("\t  Transport spectral function is initialized");
 
-    std::cout << "\t  Time elapsed: " << t.elapsed() << " ms" << std::endl;
+    std::cout << "\t  Time elapsed: " << t.elapsed() << " s" << std::endl;
 }
 
 void SpecFunc::prepare_eigenfreqs(array2D& eigenfreqs)

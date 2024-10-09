@@ -4,7 +4,7 @@ SKiES software v. 1.0.0.
 
 SKiES is a parallel C++/Fortran code for first principles transport properties calculations. It uses the LOVA method for solution of kinetic Boltzmann equation proposed by P. Allen.
 Current version relies on preliminary calculation with Quantum Espresso and EPW codes.
-EPW in turn relies on Wannier90 calculations to obtain all the quantities required next in maximally localized Wannier function representation. SKiES uses quantities in this representation and routines for Wannier interpolation as provided in EPW as an external library to obtain electron and phonon energies, matrix elements of electron-phonon interaction and electron velocities on coarse grids in Bloch representation. With these quantities obtained SKiES calculates transport Eliasberg spectral functions and with them finally electrical resistivity, thermal conductivity and Seebeck coefficient as functions of temperature. See the deatils in **examples** folder.
+EPW in turn relies on Wannier90 calculations to obtain all the quantities required next in maximally localized Wannier function representation. SKiES uses quantities in this representation and routines for Wannier interpolation as provided in EPW as an external library to obtain electron and phonon energies, matrix elements of electron-phonon interaction and electron velocities on coarse grids in Bloch representation. With these quantities obtained SKiES calculates transport Eliasberg spectral functions and with them finally electrical resistivity and thermal conductivity as functions of temperature. See the deatils in **examples** folder.
 
 ## Build and Install Quantum Espresso - EPW
 

@@ -14,7 +14,7 @@ double evaluate_dos(const arrays::array2D&, const arrays::array2D&, double value
 
 void evaluate_phdos(const arrays::array1D& range);
 
-void evaluate_trdos(const arrays::array1D& range);
+void evaluate_trdos(const arrays::array1D& range, char alpha);
 
 class TetraHandler {
 public:

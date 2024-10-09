@@ -152,35 +152,6 @@ OHandler::OHandler(const char* a2f_fnm, const char* cond_fnm, ResistType type, c
         }
         break;
 
-    case ResistType::Seebeck:
-        if (is_tetra)
-        {
-            ofs_ << "#  elec_smearing: " << "tetrahedra" << std::endl;
-            ofs_ << "#  phon_smearing: " << "tetrahedra" << std::endl;
-        }
-        else
-        {
-            ofs_ << "#  elec_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
-            ofs_ << "#  phon_smearing: " << ihandler.elec_smearing() << " [eV]" << std::endl;
-        }
-        ofs_ << "#  Transport DOS per spin [r.a.u.] in energy list: ";
-        for (size_t ieps = 0; ieps < ihandler.epsilons().size(); ++ieps)
-            ofs_ << ihandler.transDOSes()[ieps] * units::Ry_in_eV << " ";
-        ofs_ << "\n#" << std::endl;
-        if (ion_Temps_.empty())
-        {
-            ofs_ << "# Te [K]"<< std::left << std::setw(35) << "      Seebeck coefficient [muV/K]" << std::endl;
-        }
-        else
-        {
-            ofs_ << "# Seebeck coefficient [muV/K]" << std::endl;
-            ofs_ << "#  Te [K]  \\  Ti [K]:     " << std::left;
-            for (auto&& Ti : ion_Temps_)
-                ofs_ << std::setw(12) << Ti;
-            ofs_ << std::endl;
-        }
-        break;
-
     default:
         break;
     }

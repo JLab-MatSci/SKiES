@@ -178,7 +178,7 @@ void evaluate_phdos(const arrays::array1D& range)
     os.close();
 }
 
-void evaluate_trdos(const arrays::array1D& range)
+void evaluate_trdos(const arrays::array1D& range, char alpha)
 {
     std::ofstream os("VelocitiesDOS.dat");
     os << std::right;
@@ -208,32 +208,20 @@ void evaluate_trdos(const arrays::array1D& range)
         });
     };
 
-    array2D elvelocs_x, elvelocs_y, elvelocs_z;
-    array2D elvelocs_x_sq, elvelocs_y_sq, elvelocs_z_sq;
-    prepare_velocs('x', elvelocs_x, elvelocs_x_sq);
-    prepare_velocs('y', elvelocs_y, elvelocs_y_sq);
-    prepare_velocs('z', elvelocs_z, elvelocs_z_sq);
+    array2D elvelocs_alpha, elvelocs_alpha_sq;
+    prepare_velocs(alpha, elvelocs_alpha, elvelocs_alpha_sq);
 
     array1D trDOSes(range.size());
-    array1D trDOSes_x(range.size()), trDOSes_y(range.size()), trDOSes_z(range.size());
-
-    tetrahedra::TetraHandler th_x(transpose(elvelocs_x_sq), transpose(eigenens));
-    std::transform(range.begin(), range.end(), trDOSes_x.begin(), [th = std::move(th_x)] (auto&& eps) {
+    tetrahedra::TetraHandler th_alpha(transpose(elvelocs_alpha_sq), transpose(eigenens));
+    std::transform(range.begin(), range.end(), trDOSes.begin(),
+                   [th = std::move(th_alpha)] (auto&& eps) {
         return th.evaluate_dos_at_value(eps);
     });
-    tetrahedra::TetraHandler th_y(transpose(elvelocs_y_sq), transpose(eigenens));
-    std::transform(range.begin(), range.end(), trDOSes_y.begin(), [th = std::move(th_y)] (auto&& eps) {
-        return th.evaluate_dos_at_value(eps);
-    });
-    tetrahedra::TetraHandler th_z(transpose(elvelocs_z_sq), transpose(eigenens));
-    std::transform(range.begin(), range.end(), trDOSes_z.begin(), [th = std::move(th_z)] (auto&& eps) {
-        return th.evaluate_dos_at_value(eps);
-    });
-    trDOSes = (trDOSes_x + trDOSes_y + trDOSes_z) * (1.0 / 3.0);
     trDOSes = trDOSes * units::Ry_in_eV; // go to [r.a.u.]
 
     for (size_t i = 0; i < range.size(); ++i)
-        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << trDOSes[i] << std::endl;
+        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34)
+           << trDOSes[i] << std::endl;
     os.close();
 }
 

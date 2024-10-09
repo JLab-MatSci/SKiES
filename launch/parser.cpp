@@ -11,24 +11,25 @@ void parse_opts(int argc, char* argv[], TArgs& args, TOpts& opts)
     {
 		std::string opt{ argv[i] };
 		if (opt[0] == '-' && wait_for_opts)
-        {
-			if (opt.length() == 1) 
-                throw std::runtime_error("Unsupported option encountered: '-'\n");
-			if (opt[1] != '-')
-                throw std::runtime_error("Options which start with '--' are only supported\n");
-			if (opt.length() == 2)
-				wait_for_opts = false;
-            else
-            {
-				size_t p = opt.find_first_of("=");
-				if (p == std::string::npos)
-					opts[opt.substr(2)] = "true";
-				else
-					opts[opt.substr(2, p - 2)] = opt.substr(p + 1);
-			}
-		}
+			check_opt_length(opt, wait_for_opts, opts);
         else
 		    args.push_back(argv[i]);
+	}
+}
+
+void check_opt_length(const std::string& opt, bool& wait_for_opts, TOpts& opts)
+{
+	if (opt.length() == 1)
+        throw std::runtime_error("Unsupported option encountered: '-'\n");
+	if (opt[1] != '-')
+		throw std::runtime_error("Options which start with '--' are only supported\n");
+	if (opt.length() == 2)
+		wait_for_opts = false;
+	else
+	{
+		auto p = opt.find_first_of("=");
+		if (p == std::string::npos) opts[opt.substr(2)] = "true";
+		else opts[opt.substr(2, p - 2)] = opt.substr(p + 1);
 	}
 }
 

@@ -106,8 +106,6 @@ CMD str_to_CMD(const std::string& cmd)
 		return CMD::resist;
 	else if (cmd == "thermal-cond")
 		return CMD::thermal_cond;
-	else if (cmd == "seebeck")
-		return CMD::seebeck;
 	return CMD::dummy;
 }
 
@@ -137,8 +135,6 @@ std::string CMD_to_str(CMD cmd)
 		return "resist";
 	else if (cmd == CMD::thermal_cond)
 		return "thermal-cond";
-	else if (cmd == CMD::seebeck)
-		return "seebeck";
 	return "";
 }
 
@@ -175,9 +171,6 @@ void help_for_cmd(CMD cmd)
 		break;
 	case CMD::thermal_cond:
 		help_for_thermal_cond();
-		break;
-	case CMD::seebeck:
-		help_for_seebeck();
 		break;
 
 	default:
@@ -226,9 +219,6 @@ void resolve_cmd(CMD cmd, const TArgs& args, TOpts& opts)
 	case CMD::thermal_cond:
 		cmd_thermal_cond(opts);
 		break;
-	case CMD::seebeck:
-		cmd_seebeck(opts);
-		break;
 
 	default:
 		std::string wrong_cmd = "Sorry, command " + CMD_to_str(cmd) +
@@ -250,10 +240,12 @@ void cmd_list()
 	cmd_list[CMD::a2f]          = "calculates transport spectral function a2F";
 	cmd_list[CMD::resist]       = "calculates electrical resistivity";
 	cmd_list[CMD::thermal_cond] = "calculates thermal conductivity";
-	cmd_list[CMD::seebeck]      = "calculates Seebeck coefficient";
 
 	for (auto&& e : cmd_list)
-		std::cout << CMD_to_str(e.first) << ":              " << e.second << std::endl;
+	{
+		std::cout << std::left << std::setw(16) << CMD_to_str(e.first);
+		std::cout << std::setw(4) << "" << e.second << "\n";
+	}
 }
 
 void help_for_dos()
@@ -405,7 +397,8 @@ void help_for_trdos()
 		"  --sampling=<str>: type of smearing for delta-functions approximation. Supported values are: 'gs' (gaussians), 'fd' (fermi-dirac derivative). Default value is 'gs'\n"
 		"  --smearing=<sigma>: value of smearing for chosen sampling in eV. Default value is 0.03\n"
 		"  --bins=<num>: amount of bins. Default is 100\n"
-		"  --tetra: if given, use tetrahedron method for BZ sampling\n";
+		"  --tetra: if given, use tetrahedron method for BZ sampling\n"
+		"  --alpha=<[x,y or z]>: cartesian component of velocity. Default is 'x'\n";
 	std::cout << detailed << std::endl;
 }
 
@@ -441,6 +434,8 @@ void cmd_trdos(TOpts& opts)
 
 	bool is_tetra = opts["tetra"] == "true" ? true : false;
 
+	char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
+
 	launch::Timer t;
 	t.start("========= Evaluating transport DOS using Wannier interpolation (EPW)...");
 	KPprotocol kprot(grid[0], grid[1], grid[2]);
@@ -449,11 +444,11 @@ void cmd_trdos(TOpts& opts)
 
 	if (is_tetra)
 	{
-		tetrahedra::evaluate_trdos(range);
+		tetrahedra::evaluate_trdos(range, alpha);
 	}
 	else
 	{
-		quantities::evaluate_trdos(kprot.grid(), range, smearing, bzsampling::switch_sampling(sampling));
+		quantities::evaluate_trdos(kprot.grid(), range, alpha, smearing, bzsampling::switch_sampling(sampling));
 	}
 
 	t.stop("========= Transport DOS is evaluated. Results are written to VelocitiesDOS.dat");
@@ -906,12 +901,11 @@ void help_for_resist()
 		"  Non-mandatory:\n"
 		"  --bins=<num>: how many temperature values in the given range. Default value is 200\n"
         //"  --infile=<str>: the name of the input file which contains transport calculated spectral function. Default filename is 'SpecFunc_plus.dat'\n"
-        //"  --outfile=<str>: the name of the output file. Default filename is 'resist_{alpha}_{beta}.dat, where alpha and beta are cartesian components of velocities'\n"
 		"  --general: if given calculates electrical resistivity using general formula in Allen's approach. Infile must contain spectral functions at least for 2 electron energies\n"
 		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
 		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
-		"  --alpha=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
-		"  --beta=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n";
+		"  --alpha=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n";
+		//"  --beta=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
 	std::cout << detailed << std::endl;
 }
 
@@ -933,7 +927,8 @@ void cmd_resist(TOpts& opts)
 	bool is_elastic = opts["general"] == "true" ? true : false;
 
 	char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
-	char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
+	char beta = alpha; // only diagonal components of resistivity tensor are evaluated
+
 	std::string	a2f_fnm = "SpecFunc_pp_";
 	a2f_fnm += std::string{alpha};
 	a2f_fnm += std::string{beta};
@@ -981,14 +976,11 @@ void help_for_thermal_cond()
         "  --range=<[low, high]>: temperature range to calculate thermal resistivity (in K)\n"
 		"  Non-mandatory:\n"
 		"  --bins=<num>: how many temperature values in the given range. Default value is 200\n"
-        //"  --infile-plus=<str>: the name of the input file which contains transport calculated spectral function for +1 sign. Default filename is 'SpecFunc_plus.dat'\n"
-        //"  --infile-minus=<str>: the name of the input file which contains transport calculated spectral function for -1 sign. Default filename is 'SpecFunc_minus.dat'\n"
-        //"  --outfile=<str>: the name of the output file. Default filename is 'thermal-'\n"
 		"  --general: if given calculates thermal resistivity using general formula in Allen's approach. Infile must contain spectral functions at least for 2 electron energies\n"
 		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
 		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
 		"  --alpha=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
-		"  --beta=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
+		//"  --beta=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
 		"  --add_odd: if given add odd transport specral function corrections\n";
 	std::cout << detailed << std::endl;
 }
@@ -1011,7 +1003,7 @@ void cmd_thermal_cond(TOpts& opts)
 	bool is_elastic = opts["general"] == "true" ? true : false;
 
 	char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
-	char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
+	char beta = alpha; // only diagonal components of resistivity tensor are evaluated
 
 	std::string	a2f_plus_fnm = "SpecFunc_pp_";
 	a2f_plus_fnm += std::string{alpha};
@@ -1074,75 +1066,6 @@ void cmd_thermal_cond(TOpts& opts)
 	}
 	t.stop("========= Thermal conductivity is evaluated. The results are written to " + outfile);
 	t.print_elapsed("\tThermal conductivity evaluation time: ");
-}
-
-void help_for_seebeck()
-{
-	const std::string detailed = \
-		"skies seebeck [options]:\n"
-		"  Options can be given in any order. Options include:\n"
-		"  Mandatory:\n"
-        "  --range=<[low,high]>: temperature range to calculate thermal resistivity (in K)\n"
-		"  Non-mandatory:\n"
-		"  --bins=<num>: how many temperature values in the given range. Default value is 200\n"
-        //"  --infile-plus=<str>: the name of the input file which contains transport calculated spectral function for +1 sign. Default filename is 'SpecFunc_plus.dat'\n"
-        //"  --infile-minus=<str>: the name of the input file which contains transport calculated spectral function for -1 sign. Default filename is 'SpecFunc_minus.dat'\n"
-        //"  --outfile=<str>: the name of the output file. Default filename is 'seebeck.dat'\n"
-		"  --iont-range=<[low, high]>: ionic temperature range to calculate electrical resistivity\n"
-		"  --iont-bins=<num>: how many temperature values in the given ion temperatures range. Default value is 200\n"
-		"  --alpha=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
-		"  --beta=<x, y or z>: first cartesian index in resistivity tensor component. Default is 'x'\n"
-		"  --add_odd: if given add odd transport specral function corrections\n";
-	std::cout << detailed << std::endl;
-}
-
-void cmd_seebeck(TOpts& opts)
-{
-	if (opts["range"] == "")
-		throw std::runtime_error("The range of temperatures is not specified");
-	array1D range = parse_vector_of_numbers<double>(opts["range"], "range", 2);
-	
-	auto low_temp  = range[0];
-	auto high_temp = range[1];
-
-	size_t bins = 200;
-	if (opts["bins"] != "")
-		bins = static_cast<size_t>(stoi(opts["bins"]));
-
-	auto Temps = create_range(low_temp, high_temp, bins);
-
-	char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
-	char beta  = opts["beta"]  == "" ? 'x' : *opts["beta"].c_str();
-
-	std::string	outfile = "Seebeck_";
-	outfile += std::string{alpha};
-	outfile += std::string{beta};
-	outfile += std::string{".dat"};
-
-	array1D ion_Temps;
-	if (opts["iont-range"] != "")
-	{
-		auto iont_range = parse_vector_of_numbers<double>(opts["iont-range"], "iont-range", 2);
-		auto ion_low_temp  = iont_range[0];
-		auto ion_high_temp = iont_range[1];
-		size_t iont_bins = 200;
-		if (opts["iont-bins"] != "")
-		{
-			iont_bins = static_cast<size_t>(stoi(opts["iont-bins"]));
-		}
-		ion_Temps = create_range(ion_low_temp, ion_high_temp, iont_bins);
-	}
-
-	launch::Timer t;
-	t.start("========= Evaluating Seebeck coefficient...");
-
-	if (alpha == beta)
-		transport::calc_seebeck_elastic(
-					alpha, Temps, ion_Temps,
-					outfile.c_str(), skies::Lattprotocol::latt_volume);
-
-	t.stop("========= Seebeck coefficient is evaluated. The results are written to " + outfile);
-	t.print_elapsed("\t  Seebeck coefficient evaluation time: ");
 }
 
 } // launch

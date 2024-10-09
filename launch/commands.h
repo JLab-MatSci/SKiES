@@ -17,8 +17,7 @@ enum class CMD {
 	velocs,
 	a2f,
 	resist,
-	thermal_cond,
-	seebeck
+	thermal_cond
 };
 
 CMD str_to_CMD(const std::string& cmd);
@@ -39,7 +38,6 @@ void help_for_velocs();
 void help_for_a2f();
 void help_for_resist();
 void help_for_thermal_cond();
-void help_for_seebeck();
 
 void cmd_list();
 void cmd_dos(TOpts& opts);
@@ -52,7 +50,6 @@ void cmd_velocs(TOpts& opts);
 void cmd_a2f(TOpts& opts);
 void cmd_resist(TOpts& opts);
 void cmd_thermal_cond(TOpts& opts);
-void cmd_seebeck(TOpts& opts);
 
 } // launch
 } // skies
