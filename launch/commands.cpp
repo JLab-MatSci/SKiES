@@ -360,7 +360,7 @@ void cmd_phdos(TOpts& opts)
 
 	size_t bins = 300;
 	if (opts["bins"] != "")
-		bins = static_cast<size_t>(stoi(opts["smearing"]));
+		bins = static_cast<size_t>(stoi(opts["bins"]));
 
 	bool is_tetra = opts["tetra"] == "true" ? true : false;
 
