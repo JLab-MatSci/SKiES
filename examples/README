@@ -4,8 +4,8 @@ To see its main features, please follow the instructions given
 in the manual, section 2 "Running examples". One has to download
 one or both of the following archives:
 
-$ git clone https://github.com/i-Galts/Ag_epw_prep.tar.gz
-$ git clone https://github.com/i-Galts/Ag_no_epw_prep.tar.gz
+$ wget -O Ag_epw_prep.tar.gz https://t.ly/thB-4
+$ wget -O Ag_no_epw_prep.tar.gz https://t.ly/Ac_IU
 
 and extract the contents:
 
