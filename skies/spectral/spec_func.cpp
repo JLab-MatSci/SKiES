@@ -1,3 +1,14 @@
+/*-----------------------------------------------------------------------
+    * SKiES - Solver of Kinetic Equation for Solids
+    * 
+    * (C) 2025 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)
+    *
+    * SKiES may only be utilized for non-profit research.
+    * Citing appropriate sources is required when using SKiES.
+    * 
+    * Distribution of this file is permitted by the GNU General Public License.
+    * Examine the `LICENSE' file located in the current distribution's root directory.
+------------------------------------------------------------------------- */
 #include <map>
 #include <fstream>
 #include <iomanip>
@@ -115,9 +126,8 @@ void SpecFunc::init()
     // just use alpha component as a dummy choice. I don't know what trDOS(x,y) actually is.
     if (is_tetra_)
     {
-        std::transform(epsilons_.begin(), epsilons_.end(),
-                       trDOSes_.begin(), [th = std::move(th_trdos_alpha_)] (auto&& eps) {
-            return th.evaluate_dos_at_value(eps);
+        std::transform(epsilons_.begin(), epsilons_.end(), trDOSes_.begin(), [this] (auto&& eps) {
+            return th_trdos_alpha_.evaluate_dos_at_value(eps);
         });
     }
     else
@@ -199,6 +209,7 @@ void SpecFunc::prepare_fsh(const tetrahedra::TetraHandler& th_dos,
             });
             return fsh_line;
     });
+
 }
 
 SpecFunc::SpecFunc(const std::vector<size_t>& kpgrid,
@@ -274,7 +285,7 @@ SpecFunc::SpecFunc(const std::string& fname)
     std::string line;
 
     if (ifs.fail())
-        throw std::runtime_error("The file for continuation does not exist");
+        throw std::runtime_error("The file " + std::string(fname) + " for continuation does not exist");
 
     if (ifs.good()) std::getline(ifs, line);
     if (ifs.good()) std::getline(ifs, line);

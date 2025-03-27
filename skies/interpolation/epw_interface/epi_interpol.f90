@@ -1,3 +1,15 @@
+!-----------------------------------------------------------------------
+!    * SKiES - Solver of Kinetic Equation for Solids
+!    * 
+!    * (C) 2025 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)
+!    *
+!    * SKiES may only be utilized for non-profit research.
+!    * Citing appropriate sources is required when using SKiES.
+!    * 
+!    * Distribution of this file is permitted by the GNU General Public License.
+!    * Examine the `LICENSE' file located in the current distribution's root directory.
+!-------------------------------------------------------------------------
+!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!                                                                  !!!
 !!!           Module for EPI EPW interpolation facilities            !!!
@@ -46,6 +58,7 @@ MODULE epi_interpol
     !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!!        These subroutines are mostly adopted from parts of the elphwan_shuffle.f90 EPW file        !!!
+    !!!           (Poncé, Samuel, et al. // Computer Physics Communications 209 (2016): 116-133.)         !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
     !
     ! adaptor functions to use in iso_c_binding

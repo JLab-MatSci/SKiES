@@ -1,7 +1,7 @@
 function(CreateDocs in out latex)
   find_package(Doxygen)
   if (NOT DOXYGEN_FOUND)
-    add_custom_target(dox COMMAND FALSE
+    add_custom_target(doxygen COMMAND FALSE
       COMMENT "Doxygen is not found")
     return()
   endif()
@@ -10,7 +10,7 @@ function(CreateDocs in out latex)
   set(DOXYGEN_GENERATE_LATEX YES)
   set(DOXYGEN_LATEX_OUTPUT ${PROJECT_BINARY_DIR}/${latex})
   UseDoxygenAwesomeCss()
-  doxygen_add_docs(dox ${PROJECT_SOURCE_DIR}/${in})
+  doxygen_add_docs(doxygen ${PROJECT_SOURCE_DIR}/${in})
 endfunction()
 
 macro(UseDoxygenAwesomeCss)

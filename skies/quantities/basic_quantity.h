@@ -1,22 +1,14 @@
 /*-----------------------------------------------------------------------
     * SKiES - Solver of Kinetic Equation for Solids
-    * Version 1.0.0
     * 
-    * (C) 2024 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)
+    * (C) 2025 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)
     *
     * SKiES may only be utilized for non-profit research.
     * Citing appropriate sources is required when using SKiES.
     * 
-    * Project homepage: https://github.com/i-Galts/SKiES
-    * 
-    * This file: Base quantity interface definitions
-    * Declares the abstract base class for all used physical quantities,
-    * providing common interpolation and naming interfaces.
-    * 
     * Distribution of this file is permitted by the GNU General Public License.
     * Examine the `LICENSE' file located in the current distribution's root directory.
 ------------------------------------------------------------------------- */
-
 #pragma once
 
 #include <skies/common/units.h>

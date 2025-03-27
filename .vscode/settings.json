@@ -57,6 +57,18 @@
         "bitset": "cpp",
         "condition_variable": "cpp",
         "regex": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "charconv": "cpp",
+        "codecvt": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "format": "cpp",
+        "numbers": "cpp",
+        "semaphore": "cpp",
+        "span": "cpp",
+        "stop_token": "cpp",
+        "variant": "cpp",
+        "set": "cpp",
+        "thread": "cpp"
     }
 }

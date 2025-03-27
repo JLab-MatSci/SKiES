@@ -1,3 +1,14 @@
+/*-----------------------------------------------------------------------
+    * SKiES - Solver of Kinetic Equation for Solids
+    * 
+    * (C) 2025 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)
+    *
+    * SKiES may only be utilized for non-profit research.
+    * Citing appropriate sources is required when using SKiES.
+    * 
+    * Distribution of this file is permitted by the GNU General Public License.
+    * Examine the `LICENSE' file located in the current distribution's root directory.
+------------------------------------------------------------------------- */
 #include <iostream>
 #include <stdexcept>
 
@@ -32,7 +43,7 @@ using namespace quantities;
 namespace {
 const std::string HELPMSG = \
 "SKiES help message:\n"
-"skies commands             the list of all supported commands\n"
+"skies list             the list of all supported commands\n"
 "skies help [command]       the description of the chosen command\n"
 "skies [command] [options]  launch the chosen command with desired options\n";
 }
@@ -283,6 +294,10 @@ void cmd_dos(TOpts& opts)
 		high_energy = epsilons[1]; 
 	}
 
+	bool is_tetra = opts["tetra"] == "true" ? true : false;
+	if (is_tetra && (opts["sampling"] != ""))
+		throw std::runtime_error("Choose only one of BZ integration schemes: --sampling or --tetra");
+
 	std::string sampling = "gs";
 	if (opts["sampling"] != "")
 		sampling = opts["sampling"];
@@ -294,8 +309,6 @@ void cmd_dos(TOpts& opts)
 	size_t bins = 300;
 	if (opts["bins"] != "")
 		bins = static_cast<size_t>(stoi(opts["bins"]));
-
-	bool is_tetra = opts["tetra"] == "true" ? true : false;
 
 	launch::Timer t;
 	t.start("========= Evaluating electronic DOS using Wannier interpolation (EPW)...");
@@ -350,6 +363,10 @@ void cmd_phdos(TOpts& opts)
 		high_energy = epsilons[1] / 1000.0; 
 	}
 
+	bool is_tetra = opts["tetra"] == "true" ? true : false;
+	if (is_tetra && (opts["sampling"] != ""))
+		throw std::runtime_error("Choose only one of BZ integration schemes: --sampling or --tetra");
+
 	std::string sampling = "gs";
 	if (opts["sampling"] != "")
 		sampling = opts["sampling"];
@@ -361,8 +378,6 @@ void cmd_phdos(TOpts& opts)
 	size_t bins = 300;
 	if (opts["bins"] != "")
 		bins = static_cast<size_t>(stoi(opts["bins"]));
-
-	bool is_tetra = opts["tetra"] == "true" ? true : false;
 
 	launch::Timer t;
 	t.start("========= Evaluating phonon DOS using Wannier interpolation (EPW)...");
@@ -420,6 +435,10 @@ void cmd_trdos(TOpts& opts)
 		high_energy = epsilons[1]; 
 	}
 
+	bool is_tetra = opts["tetra"] == "true" ? true : false;
+	if (is_tetra && (opts["sampling"] != ""))
+		throw std::runtime_error("Choose only one of BZ integration schemes: --sampling or --tetra");
+
 	std::string sampling = "gs";
 	if (opts["sampling"] != "")
 		sampling = opts["sampling"];
@@ -431,8 +450,6 @@ void cmd_trdos(TOpts& opts)
 	size_t bins = 100;
 	if (opts["bins"] != "")
 		bins = static_cast<size_t>(stoi(opts["bins"]));
-
-	bool is_tetra = opts["tetra"] == "true" ? true : false;
 
 	char alpha = opts["alpha"] == "" ? 'x' : *opts["alpha"].c_str();
 
@@ -482,7 +499,7 @@ void cmd_bands(TOpts& opts)
 
 	std::ifstream ifs(infile);
 	if (ifs.fail())
-		throw std::runtime_error("The input file does not exist.\n");\
+		throw std::runtime_error("The input file " + std::string(infile) + " does not exist.\n");
 
 	interpol::kpLabelCoords kpath;
 	std::string line;
@@ -534,7 +551,7 @@ void cmd_phonons(TOpts& opts)
 
 	std::ifstream ifs(infile);
 	if (ifs.fail())
-		throw std::runtime_error("The input file does not exist.\n");\
+		throw std::runtime_error("The input file " + std::string(infile) + " does not exist.\n");
 
 	interpol::kpLabelCoords kpath;
 	std::string line;
@@ -613,7 +630,7 @@ void cmd_elphmat(TOpts& opts)
 
 	std::ifstream ifs(infile);
 	if (ifs.fail())
-		throw std::runtime_error("The input file does not exist.\n");\
+		throw std::runtime_error("The input file " + std::string(infile) + " does not exist.\n");
 
 	interpol::kpLabelCoords kpath;
 	std::string line;
@@ -666,7 +683,7 @@ void cmd_velocs(TOpts& opts)
 
 	std::ifstream ifs(infile);
 	if (ifs.fail())
-		throw std::runtime_error("The input file does not exist.\n");\
+		throw std::runtime_error("The input file " + std::string(infile) + " does not exist.\n");
 
 	interpol::kpLabelCoords kpath;
 	std::string line;
@@ -805,6 +822,10 @@ void cmd_a2f(TOpts& opts)
 		throw std::runtime_error("q-point grid is not specified");
 	auto qpgrid = parse_vector_of_numbers<size_t>(opts["qgrid"], "qgrid", 3);
 
+	bool is_tetra = opts["tetra"] == "true" ? true : false;
+	if (is_tetra && (opts["sampling"] != ""))
+		throw std::runtime_error("Choose only one of BZ integration schemes: --sampling or --tetra");
+
 	std::string sampling_str = "gs"; 
 	if (opts["sampling"] != "")
 		sampling_str = opts["sampling"];
@@ -833,8 +854,6 @@ void cmd_a2f(TOpts& opts)
 	auto epsilons = create_range(low_energy, high_energy, neps);
 
 	double Te = 0.258;
-
-	bool is_tetra = opts["tetra"] == "true" ? true : false;
 
 	launch::Timer t;
 	if (opts["epsilons"] == "")
@@ -959,6 +978,10 @@ void cmd_resist(TOpts& opts)
 	{
 		transport::calc_elec_cond_elastic(Temps, ion_Temps, a2f_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
 	}
+	else if (!ion_Temps.empty())
+	{
+		throw std::runtime_error("Ionic temperature range may only be supplied in general Allen's method");
+	}
 	else
 	{
 		transport::calc_elec_cond_inelastic(Temps, a2f_fnm.c_str(), outfile.c_str(), skies::Lattprotocol::latt_volume);
@@ -1058,6 +1081,10 @@ void cmd_thermal_cond(TOpts& opts)
 	{
 		transport::calc_therm_cond_elastic(Temps, ion_Temps, a2f_plus_fnm.c_str(), a2f_minus_fnm.c_str(),
 			outfile.c_str(), skies::Lattprotocol::latt_volume, a2f_pm_fnm, a2f_mp_fnm);
+	}
+	else if (!ion_Temps.empty())
+	{
+		throw std::runtime_error("Ionic temperature range may only be supplied in general Allen's method");
 	}
 	else
 	{

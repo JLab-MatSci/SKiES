@@ -1,3 +1,14 @@
+/*-----------------------------------------------------------------------
+    * SKiES - Solver of Kinetic Equation for Solids
+    * 
+    * (C) 2025 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)
+    *
+    * SKiES may only be utilized for non-profit research.
+    * Citing appropriate sources is required when using SKiES.
+    * 
+    * Distribution of this file is permitted by the GNU General Public License.
+    * Examine the `LICENSE' file located in the current distribution's root directory.
+------------------------------------------------------------------------- */
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -31,7 +42,7 @@ void print_name()
 	std::cout << "/\\__/ / |\\  \\ | |___/\\__/ /" << std::endl;
 	std::cout << "\\____/\\_| \\_/_\\____/\\____/" << std::endl;
 	std::cout << std::endl;
-	std::cout << "SKiES software v.1.0.0\n(C) 2024 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)\n\n";
+	std::cout << "SKiES software v.1.0.0\n(C) 2025 Galtsov Ilya, Fokin Vladimir, Minakov Dmitry, Levashov Pavel (JIHT RAS)\n\n";
 }
 
 int main(int argc, char **argv)

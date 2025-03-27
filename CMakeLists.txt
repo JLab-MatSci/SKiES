@@ -1,4 +1,5 @@
-project(SKiES LANGUAGES CXX C Fortran)
+cmake_policy(SET CMP0048 NEW)
+project(SKiES VERSION 1.0.0 LANGUAGES CXX C Fortran)
 cmake_minimum_required(VERSION 3.15)
 
 if(PROJECT_BINARY_DIR STREQUAL PROJECT_SOURCE_DIR)
@@ -54,8 +55,8 @@ if (SKIES_ENABLE_DOC)
     include(Doxygen)
     CreateDocs(skies docs docs/latex)
     install(DIRECTORY
-            ${PROJECT_BINARY_DIR}/docs
-            DESTINATION ${CMAKE_INSTALL_PREFIX}
+        ${PROJECT_BINARY_DIR}/docs
+        DESTINATION ${CMAKE_INSTALL_PREFIX}
     )
 endif()
 
