@@ -41,6 +41,7 @@ endif()
 option(SKIES_ENABLE_DOC                   "Generate docs" OFF)
 option(SKIES_ENABLE_TBB            "Parallel TBB version"  ON)
 option(SKIES_ENABLE_TEST                  "Tests support" OFF)
+option(SKIES_ENABLE_GUI                     "GUI support" OFF)
 
 find_package(Mbd REQUIRED)
 find_package(qe REQUIRED)
@@ -71,6 +72,10 @@ include_directories(${LAPACK_INCLUDE_DIR})
 
 add_subdirectory(skies)
 add_subdirectory(launch)
+
+if (SKIES_ENABLE_GUI)
+add_subdirectory(gui)
+endif()
 
 if (SKIES_ENABLE_TEST)
     add_subdirectory(tests)
