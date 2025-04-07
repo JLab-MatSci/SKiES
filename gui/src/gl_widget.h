@@ -10,6 +10,9 @@
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
 
+namespace skies {
+namespace gui {
+
 class SkiesOpenGLWidget : public QOpenGLWidget, protected QOpenGLFunctions {
     Q_OBJECT
 
@@ -39,3 +42,6 @@ private:
     QPoint lastMousePosition;
     float zoomLevel;
 };
+
+} // gui
+} // skies

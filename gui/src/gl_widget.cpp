@@ -1,4 +1,4 @@
-#include "opengl_widget.h"
+#include "gl_widget.h"
 
 #include <math.h>
 
@@ -8,17 +8,13 @@
 #include <QOpenGLShaderProgram>
 #include <QTimer>
 
+
+namespace skies { namespace gui {
+
 SkiesOpenGLWidget::SkiesOpenGLWidget(QWidget *parent)
     : QOpenGLWidget(parent), angularSpeed(0), zoomLevel(-5.0f)
 {
     rotationAxis = QVector3D(0, 1, 0);
-
-    QTimer *timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, [this](){
-        angularSpeed = 0.1f;
-        update();
-    });
-    timer->start(16);
 }
 
 void SkiesOpenGLWidget::initializeGL() {
@@ -26,7 +22,7 @@ void SkiesOpenGLWidget::initializeGL() {
     if (!this->context()->isValid()) {
         qFatal("OpenGL context is invalid!");
     }
-    
+
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
@@ -41,6 +37,7 @@ void SkiesOpenGLWidget::resizeGL(int w, int h) {
 
 
 void SkiesOpenGLWidget::paintGL() {
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (angularSpeed > 0) {
@@ -56,40 +53,6 @@ void SkiesOpenGLWidget::paintGL() {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glMultMatrixf(mvp.data());
-
-    glBegin(GL_QUADS);
-
-    glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(-1.0f, -1.0f, 1.0f);
-    glColor3f(0.0f, 1.0f, 0.0f); glVertex3f( 1.0f, -1.0f, 1.0f);
-    glColor3f(0.0f, 0.0f, 1.0f); glVertex3f( 1.0f,  1.0f, 1.0f);
-    glColor3f(1.0f, 1.0f, 0.0f); glVertex3f(-1.0f,  1.0f, 1.0f);
-
-    glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(-1.0f, -1.0f, -1.0f);
-    glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(-1.0f,  1.0f, -1.0f);
-    glColor3f(0.0f, 0.0f, 1.0f); glVertex3f( 1.0f,  1.0f, -1.0f);
-    glColor3f(1.0f, 1.0f, 0.0f); glVertex3f( 1.0f, -1.0f, -1.0f);
-
-    glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(-1.0f, 1.0f, -1.0f);
-    glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(-1.0f, 1.0f,  1.0f);
-    glColor3f(0.0f, 0.0f, 1.0f); glVertex3f( 1.0f, 1.0f,  1.0f);
-    glColor3f(1.0f, 1.0f, 0.0f); glVertex3f( 1.0f, 1.0f, -1.0f);
-
-    glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(-1.0f, -1.0f, -1.0f);
-    glColor3f(0.0f, 1.0f, 0.0f); glVertex3f( 1.0f, -1.0f, -1.0f);
-    glColor3f(0.0f, 0.0f, 1.0f); glVertex3f( 1.0f, -1.0f,  1.0f);
-    glColor3f(1.0f, 1.0f, 0.0f); glVertex3f(-1.0f, -1.0f,  1.0f);
-
-    glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(1.0f, -1.0f, -1.0f);
-    glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(1.0f,  1.0f, -1.0f);
-    glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(1.0f,  1.0f,  1.0f);
-    glColor3f(1.0f, 1.0f, 0.0f); glVertex3f(1.0f, -1.0f,  1.0f);
-
-    glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(-1.0f, -1.0f, -1.0f);
-    glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(-1.0f, -1.0f,  1.0f);
-    glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(-1.0f,  1.0f,  1.0f);
-    glColor3f(1.0f, 1.0f, 0.0f); glVertex3f(-1.0f,  1.0f, -1.0f);
-
-    glEnd();
 }
 
 void SkiesOpenGLWidget::mousePressEvent(QMouseEvent *event) {
@@ -122,3 +85,6 @@ void SkiesOpenGLWidget::updateProjectionMatrix() {
     view.setToIdentity();
     view.translate(0, 0, zoomLevel);
 }
+
+} // gui
+} // skies

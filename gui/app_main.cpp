@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
 
     QApplication app(argc, argv);
 
-    SkiesApplicationWindow win;
+    skies::gui::SkiesApplicationWindow win;
     win.show();
 
     return app.exec();

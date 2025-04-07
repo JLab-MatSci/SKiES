@@ -1,10 +1,19 @@
 set(SOURCES
     "src/window.cpp"
-    "src/opengl_widget.cpp"
+    "src/gl_widget.cpp"
+    "src/crystal_gl_widget.cpp"
+    "src/crystal_structure.cpp"
+    "src/crystal_viewer_dialog.cpp"
+    "src/editor_dock_widget.cpp"
 )
 
 set(HEADERS
   "src/window.h"
+  "src/gl_widget.h"
+  "src/crystal_gl_widget.h"
+  "src/crystal_structure.h"
+  "src/crystal_viewer_widget.h"
+  "src/editor_dock_widget.h"
 )
 
 find_package(Qt5
