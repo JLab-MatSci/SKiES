@@ -40,6 +40,7 @@ endif()
 
 option(SKIES_ENABLE_DOC                   "Generate docs" OFF)
 option(SKIES_ENABLE_TBB            "Parallel TBB version"  ON)
+option(SKIES_ENABLE_MPI            "Parallel MPI version"  ON)
 option(SKIES_ENABLE_TEST                  "Tests support" OFF)
 
 find_package(Mbd REQUIRED)
@@ -49,6 +50,11 @@ find_package(qe REQUIRED)
 if (SKIES_ENABLE_TBB)
     find_package(TBB REQUIRED)
     add_definitions(-DSKIES_TBB)
+endif()
+
+if (SKIES_ENABLE_MPI)
+    find_package(MPI REQUIRED COMPONENTS C)
+    add_definitions(-DSKIES_MPI)
 endif()
 
 if (SKIES_ENABLE_DOC)

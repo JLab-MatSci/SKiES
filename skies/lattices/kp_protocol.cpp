@@ -38,7 +38,8 @@ bool operator== (const KPprotocol& kp1, const KPprotocol& kp2)
 
 KPprotocol::KPprotocol() {}
 
-KPprotocol::KPprotocol(size_t n1, size_t n2, size_t n3)
+KPprotocol::KPprotocol(size_t n1, size_t n2, size_t n3,
+                       std::shared_ptr<Decomposer> decomposer)
     : n1_(n1), n2_(n2), n3_(n3)
     , nkpt_(n1 * n2 * n3)
     , grid_(nkpt_, array1D(3, 0.0))
@@ -74,6 +75,11 @@ KPprotocol::KPprotocol(size_t n1, size_t n2, size_t n3)
                 vd_from_ind_[N] = k;
                 cnt++;
             }
+
+    if (decomposer)
+        decomposer_ = std::move(decomposer);
+    else
+        decomposer_ = std::make_unique<SerialDecomposer>(n1 * n2 * n3);
 }
 
 std::tuple<size_t, size_t, size_t> KPprotocol::mesh() const

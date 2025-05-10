@@ -34,11 +34,14 @@
 #include <launch/timer.h>
 #include <launch/commands.h>
 
+#include <skies/utils/mpi_wrapper.h>
+
 namespace skies { namespace launch {
 
 using namespace arrays;
 using namespace spectral;
 using namespace quantities;
+using namespace utils;
 
 namespace {
 const std::string HELPMSG = \
@@ -195,10 +198,10 @@ void resolve_cmd(CMD cmd, const TArgs& args, TOpts& opts)
 	switch (cmd)
 	{
 	case CMD::help:
-		if (!args.size()) std::cout << HELPMSG;
+		if (mpi::is_root() && !args.size()) std::cout << HELPMSG;
 		break;
 	case CMD::list:
-		if (!args.size()) cmd_list();
+		if (mpi::is_root() && !args.size()) cmd_list();
 		break;
 	case CMD::dos:
 		cmd_dos(opts);
@@ -313,7 +316,10 @@ void cmd_dos(TOpts& opts)
 	launch::Timer t;
 	t.start("========= Evaluating electronic DOS using Wannier interpolation (EPW)...");
 	
-	KPprotocol kprot(grid[0], grid[1], grid[2]);
+	auto nkpt = grid[0] * grid[1] * grid[2];
+	KPprotocol kprot(grid[0], grid[1], grid[2],
+		std::make_shared<MPIDecomposer>(nkpt, mpi::rank(), mpi::size()));
+
 	tetrahedra::TetraHandler::set_kprot(kprot);
 	array2D weights(kprot.nkpt(), array1D(EigenValue::nbands, 1));
 	auto range = arrays::create_range(low_energy, high_energy, bins);
@@ -324,7 +330,7 @@ void cmd_dos(TOpts& opts)
 	}
 	else
 	{
-		quantities::evaluate_dos<EigenValueDrawable>(kprot.grid(), range, smearing, bzsampling::switch_sampling(sampling), weights);
+		quantities::evaluate_dos<EigenValueDrawable>(kprot, range, smearing, bzsampling::switch_sampling(sampling), weights);
 	}
 
 	t.stop("========= Electron DOS is evaluated. Results are written to EigenValueDOS.dat");
@@ -381,7 +387,11 @@ void cmd_phdos(TOpts& opts)
 
 	launch::Timer t;
 	t.start("========= Evaluating phonon DOS using Wannier interpolation (EPW)...");
-	KPprotocol kprot(grid[0], grid[1], grid[2]);
+
+	auto nkpt = grid[0] * grid[1] * grid[2];
+	KPprotocol kprot(grid[0], grid[1], grid[2],
+		std::make_shared<MPIDecomposer>(nkpt, mpi::rank(), mpi::size()));
+
 	tetrahedra::TetraHandler::set_kprot(kprot);
 	array2D weights(kprot.nkpt(), array1D(EigenFrequency::nmodes, 1));
 	auto range = arrays::create_range(low_energy, high_energy, bins);
@@ -392,7 +402,7 @@ void cmd_phdos(TOpts& opts)
 	}
 	else
 	{
-		quantities::evaluate_dos<EigenFrequencyDrawable>(kprot.grid(), range, smearing, bzsampling::switch_sampling(sampling), weights);
+		quantities::evaluate_dos<EigenFrequencyDrawable>(kprot, range, smearing, bzsampling::switch_sampling(sampling), weights);
 	}
 
 	t.stop("========= Phonon DOS is evaluated. Results are written to EigenFrequencyDOS.dat");

@@ -53,6 +53,7 @@ public:
      * @return double The computed DOS value.
      */
     double evaluate_dos_at_value(double value, bool use_qprot = false) const;
+    double evaluate_nos_at_value(double value, bool use_qprot = false) const;
 
 private:
     /**

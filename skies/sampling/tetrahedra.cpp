@@ -21,9 +21,11 @@
 #include <skies/quantities/eigenfreqs.h>
 
 #include <skies/utils/tbb_wrapper.h>
+#include <skies/utils/mpi_wrapper.h>
 
 namespace skies { namespace tetrahedra {
 
+using namespace utils;
 using namespace arrays;
 using namespace quantities;
 
@@ -131,33 +133,64 @@ double TetraHandler::evaluate_dos_at_value(double value, bool use_qprot) const
     return dos;
 }
 
+double TetraHandler::evaluate_nos_at_value(double value, bool use_qprot) const
+{
+    std::vector<size_t> ikpts;
+    if (use_qprot)
+        ikpts = qprot_.inds_loc();
+    else
+        ikpts = kprot_.inds_loc();
+
+    double dos = std::transform_reduce(PAR ikpts.begin(), ikpts.end(), 0.0, std::plus<double>(),
+        [&] (auto&& ik) -> double {
+            std::vector<size_t> ibands(A_.size());
+            std::iota(ibands.begin(), ibands.end(), 0);
+            return std::transform_reduce(ibands.begin(), ibands.end(), 0.0, std::plus<double>(),
+                [&] (auto&& n) -> double {
+                    return evaluate_dos_at(ik, n, value, use_qprot);
+            });
+        }
+    );
+    return dos;
+}
+
 void evaluate_dos(const arrays::array1D& range)
 {
-    std::ofstream os("EigenValueDOS.dat");
-    os << std::right;
-    os << std::setw(12) << "# Energy, eV";
-    os << std::setw(25) << "EigenValue DOS";
-    os << std::setw(9) << " [1/eV/spin/cell]";
-    os << std::endl;
-
     assert(TetraHandler::is_initialized());
-    auto grid = TetraHandler::kprot().grid();
-    auto nkpt = grid.size();
-    array2D weights(EigenValueDrawable::nbands, array1D(nkpt, 1));
-    array2D energies(nkpt, array1D(EigenValueDrawable::nbands, 0.0));
-    std::transform(grid.begin(), grid.end(), energies.begin(),  [] (auto&& k) {
+    auto grid_loc = TetraHandler::kprot().grid_loc();
+
+    auto nkpt = TetraHandler::kprot().nkpt();
+    auto nkpt_loc = grid_loc.size();
+
+    array2D weights_loc(EigenValueDrawable::nbands, array1D(nkpt_loc, 1));
+    array2D energies_loc(nkpt_loc, array1D(EigenValueDrawable::nbands, 0.0));
+    std::transform(PAR grid_loc.begin(), grid_loc.end(), energies_loc.begin(),  [] (auto&& k) {
         return EigenValueDrawable().interpolate_at(k);
     });
 
-    array1D dos(range.size(), 0.0);
-    TetraHandler th(std::move(weights), transpose(energies));
-    std::transform(range.begin(), range.end(), dos.begin(), [&] (double v) {
-        return th.evaluate_dos_at_value(v);
+    array1D nos_loc(range.size(), 0.0);
+    TetraHandler th(std::move(weights_loc), transpose(energies_loc));
+    std::transform(PAR range.begin(), range.end(), nos_loc.begin(), [&] (double v) {
+        return th.evaluate_nos_at_value(v);
     });
 
-    for (size_t i = 0; i < range.size(); ++i)
-        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << dos[i] << std::endl;
-    os.close();
+    TetraHandler::kprot().reduce(nos_loc);
+
+    nos_loc = nos_loc * (1.0 / nkpt);
+
+    if (!TetraHandler::kprot().is_parallel() || mpi::is_root()) {
+        std::ofstream os("EigenValueDOS.dat");
+        os << std::right;
+        os << std::setw(12) << "# Energy, eV";
+        os << std::setw(25) << "EigenValue DOS";
+        os << std::setw(9) << " [1/eV/spin/cell]";
+        os << std::endl;
+
+        for (size_t i = 0; i < range.size(); ++i)
+            os << std::setprecision(6) << std::setw(12)
+               << range[i] << std::setw(34) << nos_loc[i] << std::endl;
+        os.close();
+    }
 }
 
 void evaluate_phdos(const arrays::array1D& range)

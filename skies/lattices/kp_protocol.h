@@ -11,8 +11,11 @@
 ------------------------------------------------------------------------- */
 #pragma once
 
+#include <memory>
 #include <unordered_map>
+
 #include <skies/common/ndimarrays.h>
+#include <skies/lattices/decompose.h>
 
 namespace skies {
 
@@ -28,9 +31,12 @@ public:
      * @param n2 number of k-points in ky direction
      * @param n3 number of k-points in kz direction
     */
-    KPprotocol(size_t n1, size_t n2, size_t n3);
+    //KPprotocol(size_t n1, size_t n2, size_t n3);
     //KPprotocol(const KPprotocol& oth);
     //KPprotocol& operator= (const KPprotocol& that);
+
+    KPprotocol(std::size_t n1, std::size_t n2, std::size_t n3,
+               std::shared_ptr<Decomposer> decomposer = nullptr);
 
     std::tuple<size_t, size_t, size_t> mesh() const;
 
@@ -53,6 +59,14 @@ public:
     arrays::array2D&& grid() && { return std::move(grid_); }
     const std::vector<std::vector<int>>& igrid() const & { return igrid_; }
 
+    std::size_t npt_loc() const { return decomposer_->npt_loc(); }
+    std::size_t index_glob(std::size_t idx_loc) const { return decomposer_->index_glob(idx_loc); }
+    arrays::array2D grid_loc() const { return decomposer_->grid_loc(grid_); }
+    void reduce(arrays::array1D& inout) const { decomposer_->reduce(inout); }
+    bool is_parallel() const { return decomposer_->is_parallel(); }
+
+    const std::vector<std::size_t>& inds_loc() const { return decomposer_->inds_loc(); }
+
 private:
     void apply_pbc(std::vector<std::vector<int>>& subcell_v) const;
 
@@ -69,6 +83,8 @@ private:
     std::unordered_map<size_t, std::vector<int>> vi_from_ind_;
 
     friend bool operator== (const KPprotocol&, const KPprotocol&);
+
+    std::shared_ptr<Decomposer> decomposer_;
 };
 
 bool operator== (const KPprotocol& kp1, const KPprotocol& kp2);

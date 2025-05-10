@@ -21,7 +21,11 @@
 
 #include <launch/timer.h>
 
+#include <skies/utils/mpi_wrapper.h>
+
 namespace skies { namespace quantities {
+
+using arrays::operator*;
 
 /**
  * \brief Evaluates transport DOS at given value (in eV)
@@ -83,6 +87,32 @@ double evaluate_dos_at_value(double value,
     return dos;
 }
 
+
+template <typename Quan>
+double evaluate_nos_at_value(double value,
+                             double smearing,
+                             bzsampling::SamplingFunc sampling,
+                             const arrays::array2D& values, 
+                             const arrays::array2D& weights)
+{
+    assert(values.size() == weights.size());
+    auto nkpt = values.size();
+    auto nbnd = values[0].size();
+    std::vector<size_t> ikpts(nkpt);
+    std::iota(ikpts.begin(), ikpts.end(), 0);
+    double nos = std::transform_reduce(PAR ikpts.begin(), ikpts.end(), 0.0, std::plus<double>(),
+        [&] (auto&& ik) -> double {
+            std::vector<size_t> ibands(nbnd);
+            std::iota(ibands.begin(), ibands.end(), 0);
+            return std::transform_reduce(ibands.begin(), ibands.end(), 0.0, std::plus<double>(),
+                [&] (auto&& n) -> double {
+                    return weights[ik][n] * sampling(value - values[ik][n], smearing);
+            });
+        }
+    );
+    return nos;
+}
+
 /**
  * \brief Evaluates DOS at given value (in eV). The quantity of interest is provided as a template parameter
  * @param value energy to calculate DOS at
@@ -129,7 +159,7 @@ void evaluate_trdos(const arrays::array2D& grid,
  * @param weights 2D array calculated over given grid to serve as weights multipliers
 */
 template <typename Quan>
-void evaluate_dos(const arrays::array2D& grid,
+void evaluate_dos(const KPprotocol& kprot,
                   const arrays::array1D& range,
                   double smearing,
                   bzsampling::SamplingFunc sampl_type,
@@ -137,32 +167,49 @@ void evaluate_dos(const arrays::array2D& grid,
 {
     if (std::is_same_v<Quan, VelocitiesDrawable>)
         throw std::runtime_error("Use evaluate_trdos instead\n");
-    std::ofstream os(Quan().name() + "DOS.dat");
-    os << std::right;
-    os << std::setw(12) << "# Energy, eV";
-    os << std::setw(25) << Quan().name() + " DOS";
-        os << std::setw(9) << " [1 / eV]";
-    os << std::endl;
 
-    auto nkpt = grid.size();
+    auto grid_loc = kprot.grid_loc();
+
     size_t nbnd = std::is_same_v<Quan, EigenFrequencyDrawable>
                                 ? EigenFrequencyDrawable::nmodes
 	    					    : EigenValue::nbands;
-    arrays::array2D values;
-    values.resize(nkpt, arrays::array1D(nbnd));
-    std::transform(PAR grid.begin(), grid.end(), values.begin(), [] (auto&& k) {
+    arrays::array2D values_loc;
+    values_loc.resize(grid_loc.size(), arrays::array1D(nbnd));
+    std::transform(PAR grid_loc.begin(), grid_loc.end(), values_loc.begin(), [] (auto&& k) {
         return Quan().interpolate_at(k);
     });
 
-    arrays::array1D DOSes(range.size(), 0.0);
-    arrays::array1D DOSes_tmp(range.size(), 0.0);
-    std::transform(range.begin(), range.end(), DOSes.begin(), [&] (double v) {
-        return evaluate_dos_at_value<Quan>(v, smearing, sampl_type, values, weights);
+    auto& inds_loc = kprot.inds_loc();
+    arrays::array2D weights_loc; weights_loc.resize(inds_loc.size());
+    std::transform(PAR inds_loc.begin(), inds_loc.end(), weights_loc.begin(), [&] (auto ind) {
+        return weights[ind];
     });
 
-    for (size_t i = 0; i < range.size(); ++i)
-        os << std::setprecision(6) << std::setw(12) << range[i] << std::setw(34) << DOSes[i] << std::endl;
-    os.close();
+    arrays::array1D DOSes_loc(range.size(), 0.0);
+
+    std::transform(PAR range.begin(), range.end(), DOSes_loc.begin(), [&] (double v) {
+        return evaluate_nos_at_value<Quan>(v, smearing, sampl_type, values_loc, weights_loc);
+    });
+
+    kprot.reduce(DOSes_loc);
+
+    DOSes_loc = DOSes_loc * (1.0 / kprot.nkpt());
+
+    if (!kprot.is_parallel() || utils::mpi::is_root()) {
+        std::ofstream os(Quan().name() + "DOS.dat");
+        os << std::right;
+        os << std::setw(12) << "# Energy, eV";
+        os << std::setw(25) << Quan().name() + " DOS";
+        os << std::setw(9) << " [1 / eV]";
+        os << std::endl;
+
+        for (size_t i = 0; i < range.size(); ++i)
+            os << std::setprecision(6) << std::setw(12) << range[i]
+               << std::setw(34) << DOSes_loc[i] << std::endl;
+
+        os.close();
+    }
+
     return;
 }
 

@@ -16,6 +16,8 @@
 #include <cassert>
 #include <iostream>
 
+#include <skies/utils/mpi_wrapper.h>
+
 namespace skies { namespace launch {
 
 /**
@@ -46,7 +48,7 @@ void start(const std::string& text = "")
 {
     is_started = true;
     start_ = std::chrono::high_resolution_clock::now();
-    if (!text.empty()) {
+    if (utils::mpi::is_root() && !text.empty()) {
         std::cout << text << std::endl;
     }
 }
@@ -60,7 +62,7 @@ void stop(const std::string& text = "")
 {
     is_started = false;
     stop_ = std::chrono::high_resolution_clock::now();
-    if (!text.empty()) {
+    if (utils::mpi::is_root() && !text.empty()) {
         std::cout << text << std::endl;
     }
 }
@@ -85,7 +87,8 @@ unsigned elapsed()
 void print_start(const std::string& text)
 {
     std::time_t t_c = std::chrono::system_clock::to_time_t(start_);
-    std::cout << text << std::put_time(std::localtime(&t_c), "%F %T.\n") << std::endl;
+    if (utils::mpi::is_root())
+        std::cout << text << std::put_time(std::localtime(&t_c), "%F %T.\n") << std::endl;
 }
 
 /**
@@ -96,7 +99,8 @@ void print_start(const std::string& text)
 void print_stop(const std::string& text)
 {
     std::time_t t_c = std::chrono::system_clock::to_time_t(stop_);
-    std::cout << text << std::put_time(std::localtime(&t_c), "%F %T.\n") << std::endl;
+    if (utils::mpi::is_root())
+        std::cout << text << std::put_time(std::localtime(&t_c), "%F %T.\n") << std::endl;
 }
 
 /**
@@ -106,7 +110,8 @@ void print_stop(const std::string& text)
  */
 void print_elapsed(const std::string& text)
 {
-    std::cout << text << elapsed() << " s" << std::endl;
+    if (utils::mpi::is_root())
+        std::cout << text << elapsed() << " s" << std::endl;
 }
 };
 
