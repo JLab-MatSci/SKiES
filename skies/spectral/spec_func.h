@@ -272,7 +272,19 @@ public:
      *
      * @param high_band Upper band index.
      */
-    void set_high_band(int high_band) { high_band_ = high_band; }
+    void set_high_band(int high_band) {
+          high_band_ = high_band;
+    }
+
+    void init_tmp_arrays() {
+        assert(low_band_ <= high_band_);
+        auto nbnd = high_band_ - low_band_ + 1;
+
+        eigenens_tmp_.resize(kprot_.nkpt(), arrays::array1D(nbnd, 0.0));
+        eigenens_tmp_qk_.resize(kprot_.nkpt(), arrays::array1D(nbnd, 0.0));
+
+        matels_tmp_.resize(nbnd, arrays::array2D(nbnd, arrays::array1D(kprot_.nkpt(), 0.0)));
+    }
 
     /**
      * @brief Returns the lower band index.
@@ -355,39 +367,20 @@ private:
     void prepare_squared_velocs(const arrays::array2D& elvelocs, arrays::array2D& elvelocs_sq);
 
     /**
-     * @brief Prepares Fermi surface harmonics for calculations.
-     *
-     * @param elvelocs Array of electronic velocities.
-     * @param elvelocs_sq Array of squared velocities.
-     * @param fsh Array to store Fermi surface harmonics.
-     */
-    void prepare_fsh(const arrays::array2D& elvelocs, const arrays::array2D& elvelocs_sq, arrays::array2D& fsh);
-
-    /**
-     * @brief Prepares Fermi surface harmonics using tetrahedron handlers.
-     *
-     * @param th_dos Tetrahedron handler for DOS.
-     * @param th_trdos Tetrahedron handler for transport DOS.
-     * @param elvelocs Array of electronic velocities.
-     * @param fsh Array to store Fermi surface harmonics.
-     */
-    void prepare_fsh(const tetrahedra::TetraHandler& th_dos, const tetrahedra::TetraHandler& th_trdos,
-                    const arrays::array2D& elvelocs, arrays::array2D& fsh);
-
-    /**
-     * @brief Calculates the inner sum for a subarray at low temperatures.
+     * @brief Calculates the inner sum for a subarray
      *
      * @param ik Index of the k-point.
      * @param iq Index of the q-point.
      * @param imd Index of the mode.
+     * @param ieps Index of the epsilon
      * @param eigenens Array of eigenenergies.
      * @param eigenens_qk Array of eigenenergies at q+k.
      * @param matels Array of matrix elements.
      */
-    void calc_inner_sum_in_subarray_lowt(size_t ik, size_t iq, size_t imd,
+    void calc_inner_sum_in_subarray_tetra_inner(size_t ik, size_t iq, size_t imd/*, size_t ieps,
                                         arrays::array2D& eigenens,
                                         arrays::array2D& eigenens_qk,
-                                        arrays::array3D& matels);
+                                        arrays::array3D& matels*/);
 
     /**
      * @brief Calculates the inner sum for a subarray using epsilon values.
@@ -399,10 +392,10 @@ private:
      * @param eigenens_qk Array of eigenenergies at q+k.
      * @param matels Array of matrix elements.
      */
-    void calc_inner_sum_in_subarray_epsilons(size_t ik, size_t iq, size_t imd,
-                                            arrays::array2D& eigenens,
-                                            arrays::array2D& eigenens_qk,
-                                            arrays::array3D& matels);
+    //void calc_inner_sum_in_subarray_epsilons(size_t ik, size_t iq, size_t imd,
+    //                                        arrays::array2D& eigenens,
+    //                                        arrays::array2D& eigenens_qk,
+    //                                        arrays::array3D& matels);
 
     /**
      * @brief Calculates the inner sum for a specific q-point, mode, and epsilon index.
@@ -464,9 +457,6 @@ private:
     tetrahedra::TetraHandler th_trdos_alpha_; ///< Tetrahedron handler for transport DOS (alpha).
     tetrahedra::TetraHandler th_trdos_beta_;  ///< Tetrahedron handler for transport DOS (beta).
 
-    arrays::array2D fsh_alpha_; ///< Fermi surface harmonics for alpha direction.
-    arrays::array2D fsh_beta_;  ///< Fermi surface harmonics for beta direction.
-
     size_t low_band_{ 0 };      ///< Lower band index.
     size_t high_band_{ quantities::EigenValue::nbands - 1 }; ///< Upper band index.
 
@@ -497,8 +487,10 @@ private:
     arrays::array2D eigenens_qk_; ///< Eigenenergies at q+k.
     arrays::array2D elvelocs_qk_alpha_; ///< Electronic velocities at q+k for alpha direction.
     arrays::array2D elvelocs_qk_beta_;  ///< Electronic velocities at q+k for beta direction.
-    arrays::array2D fsh_qk_alpha_; ///< Fermi surface harmonics at q+k for alpha direction.
-    arrays::array2D fsh_qk_beta_;  ///< Fermi surface harmonics at q+k for beta direction.
+
+    arrays::array2D eigenens_tmp_;
+    arrays::array2D eigenens_tmp_qk_;
+    arrays::array3D matels_tmp_;
 };
 
 /**

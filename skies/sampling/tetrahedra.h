@@ -151,9 +151,9 @@ public:
      * @param epsilons_glob Global eigenenergies array (dimensions: nbnd x nkpt).
      * @param omegas_glob Global frequencies array (dimensions: nmodes x nkpt).
      */
-    DoubleTetraHandler(arrays::array3D&& A_glob,
-                    arrays::array2D&& epsilons_glob,
-                    arrays::array2D&& omegas_glob);
+    DoubleTetraHandler(arrays::array3D& A_glob,
+                    arrays::array2D& epsilons_glob,
+                    arrays::array2D& omegas_glob);
 
     /**
      * @brief Evaluates the density of states (DOS) at specific indices and values.
@@ -202,9 +202,9 @@ public:
     static bool is_initialized();
 
 private:
-    arrays::array3D A_glob_;      ///< Global matrix elements array (dimensions: nbnd x nkpt x nmodes).
-    arrays::array2D epsilons_glob_; ///< Global eigenenergies array (dimensions: nbnd x nkpt).
-    arrays::array2D omegas_glob_;   ///< Global frequencies array (dimensions: nmodes x nkpt).
+    arrays::array3D& A_glob_;      ///< Global matrix elements array (dimensions: nbnd x nkpt x nmodes).
+    arrays::array2D& epsilons_glob_; ///< Global eigenenergies array (dimensions: nbnd x nkpt).
+    arrays::array2D& omegas_glob_;   ///< Global frequencies array (dimensions: nmodes x nkpt).
 
     /**
      * @brief Creates tetrahedra for integration within a subcell.

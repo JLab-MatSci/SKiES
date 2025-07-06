@@ -874,6 +874,9 @@ void cmd_a2f(TOpts& opts)
 		a2f.set_low_band(low_band);
 		a2f.set_high_band(high_band);
 
+		if (is_tetra)
+            a2f.init_tmp_arrays();
+
 		a2f.set_type_of_el_smear(sampling_str);
 		a2f.set_type_of_ph_smear(sampling_str);
 
@@ -898,6 +901,10 @@ void cmd_a2f(TOpts& opts)
 		);
 		a2f.set_low_band(low_band);
 		a2f.set_high_band(high_band);
+
+		if (is_tetra)
+            a2f.init_tmp_arrays();
+
 
 		a2f.set_type_of_el_smear(sampling_str);
 		a2f.set_type_of_ph_smear(sampling_str);

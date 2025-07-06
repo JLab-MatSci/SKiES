@@ -356,19 +356,13 @@ double DoubleTetraHandler::evaluate_dos_at_values(double E, double O) const
     auto mmax = A_glob_[0].size();
     auto ikpts = kprot_.range();
     double dos = std::transform_reduce(PAR ikpts.begin(), ikpts.end(), 0.0, std::plus<double>(),
-        [&] (auto&& ik) -> double {
-            std::vector<size_t> ibands(nmax);
-            std::iota(ibands.begin(), ibands.end(), 0);
-            return std::transform_reduce(ibands.begin(), ibands.end(), 0.0, std::plus<double>(),
-                [&] (auto&& n) -> double {
-                    std::vector<size_t> jbands(mmax);
-                    std::iota(jbands.begin(), jbands.end(), 0);
-                    return std::transform_reduce(jbands.begin(), jbands.end(), 0.0, std::plus<double>(),
-                        [&] (auto&& m) -> double {
-                            return evaluate_dos_at(ik, n, m, E, O);
-                    });
-            });
-        }
+        [&] (auto&& ik) -> double {     
+            double loc_sum{0.0};
+            for (size_t n = 0; n < nmax; ++n)
+                for (size_t m = 0; m < mmax; ++m)
+                        loc_sum += evaluate_dos_at(ik, n, m, E, O);
+          return loc_sum;
+       }
     );
     return dos;
 }
@@ -399,15 +393,14 @@ DoubleTetraHandler::create_tetrahedra(const std::vector<size_t>& sc) const
     return tetra;
 }
 
-DoubleTetraHandler::DoubleTetraHandler(array3D&& A_glob,
-                                       array2D&& epsilons_glob,
-                                       array2D&& omegas_glob)
-    : A_glob_(std::move(A_glob))
-    , epsilons_glob_(std::move(epsilons_glob))
-    , omegas_glob_(std::move(omegas_glob))
+DoubleTetraHandler::DoubleTetraHandler(array3D& A_glob,
+                                       array2D& epsilons_glob,
+                                       array2D& omegas_glob)
+    : A_glob_(A_glob)
+    , epsilons_glob_(epsilons_glob)
+    , omegas_glob_(omegas_glob)
 {
-    if ((kprot_.nkpt() != A_glob_[0][0].size()) || (kprot_.nkpt() != epsilons_glob_.size()) || (kprot_.nkpt() != omegas_glob_.size()))
-        throw std::runtime_error("Arrays of matrix elements A_k, epsilons e_k and omegas om_k must contain kprot.nkpt elements");
+
 }
 
 double DoubleTetraHandler::evaluate_integral_0(double EE, const array1D& E,
