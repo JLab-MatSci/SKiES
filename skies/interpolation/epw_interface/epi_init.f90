@@ -166,21 +166,33 @@ MODULE epi_initialize
     END INTERFACE
     !
     !
+    INTERFACE
+    INTEGER function MPI_Comm_c2f(c_handle) bind(c, name="MPICommC2F")
+      use iso_c_binding
+      TYPE(c_ptr), value :: c_handle
+    END function
+    END INTERFACE
+    !
+    !
     CONTAINS
     !
     !
-    SUBROUTINE epi_init() bind(C, name='epiInit')
+    SUBROUTINE epi_init(comm, rank) bind(C, name='epiInit')
       !
         IMPLICIT NONE
-        !INTEGER(c_int), INTENT(IN) :: rank
+        !
+        INTEGER(c_int), INTENT(IN) :: rank
+        INTEGER(c_int), INTENT(IN) :: comm
+        INTEGER :: ierr
         !
         REAL(KIND = DP), ALLOCATABLE :: w_centers(:, :)
         !! Wannier centers
         !
         gamma_only = .FALSE.
         !
-        !meta_ionode = (rank == 0)
-        meta_ionode = .TRUE.
+        CALL mp_startup()
+        !
+        meta_ionode = (rank == 0)
         CALL epw_readin()
         !
         ! !

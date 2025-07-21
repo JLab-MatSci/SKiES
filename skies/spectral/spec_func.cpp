@@ -28,7 +28,7 @@
 
 #include <skies/utils/tbb_wrapper.h>
 
-#define SINGLE_CART 1
+#define SINGLE_CART 0
 
 using namespace skies::arrays;
 using namespace skies::bzsampling;

@@ -1,0 +1,33 @@
+--
+ &control
+    calculation     = 'scf'
+    prefix          = 'ag'
+    restart_mode    = 'from_scratch'
+    wf_collect      = .true.
+    pseudo_dir      = './'
+    outdir          = './'
+    verbosity       = 'high'
+    tprnfor         = .true.
+    tstress         = .true.
+ /
+ &system
+    ibrav           = 2
+    celldm(1)       = 7.67541786674
+    nat             = 1
+    ntyp            = 1
+    ecutwfc         = 90
+    occupations     = 'smearing'
+    smearing        = 'mp'
+    degauss         = 0.025
+ /
+ &electrons
+    diagonalization = 'david'
+    mixing_beta     = 0.7
+    conv_thr        = 1.0d-12
+ /
+ATOMIC_SPECIES
+ Ag 107.87 Ag.pbesol-n-kjpaw_psl.1.0.0.UPF
+ATOMIC_POSITIONS crystal
+ Ag 0.0 0.0 0.0
+K_POINTS automatic
+ 16 16 16 0 0 0

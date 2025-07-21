@@ -10,6 +10,13 @@ EPW in turn relies on Wannier90 calculations to obtain all the quantities requir
 
 QE must be built and installed with the use of cmake/ccmake because SKiES uses the same build system and exploits qeConfig.cmake and MbdConfig.cmake files produced by cmake after the installation of QE. It is higly recommended to first configure the project with ccmake as follows.
 
+Before building QE one has to apply some patches for EPW to make code compatible with SKiES. Please enter the EPW/src folder of QE. Apply the following patches:
+```bash
+patch < SKiES_ROOT_DIR/qe-patches/epw_readin.patch
+patch < SKiES_ROOT_DIR/qe-patches/io_epw.patch
+patch < SKiES_ROOT_DIR/qe-patches/wan2bloch.patch
+```
+
 Create **build** folder and launch ccmake:
 ```bash
 cd /path/to/src/qunatum-espresso (A file with the main CMakeLists.txt QE file, e.g /home/user/soft/qe)
@@ -27,6 +34,8 @@ Configure project settings pressing [c].
                                                                          # integration of FFTW library into SKiES # via CMake configuration files
 
 ```
+
+For more details please see the manual.pdf file in the root folder of SKiES (section 1.1)
 
 ## Build and Install SKiES
 
@@ -74,3 +83,5 @@ mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -Dqe_DIR=/home/user/soft/qe/install/lib/cmake/qe -S /path/to/src/skies
 ```
+
+For more details please see the manual.pdf file in the root SKiES folder (section 1.2)

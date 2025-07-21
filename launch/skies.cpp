@@ -20,14 +20,21 @@
 #include <skies/quantities/eigenvals.h>
 #include <skies/lattices/latt_protocol.h>
 
+#include <skies/utils/mpi_wrapper.h>
+
 #include <iostream>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void epiInit();
+void epiInit(int*, int*);
 void epiFinalize();
+
+MPI_Fint MPICommC2F(MPI_Comm *comm) {
+	MPI_Fint ret = MPI_Comm_c2f(*comm);
+	return ret;
+}
 
 #ifdef __cplusplus
 }
@@ -46,17 +53,25 @@ void print_name()
 }
 
 int main(int argc, char **argv)
-try {
-	skies::launch::Timer t;
-	t.start();
+try 
+{
+	using namespace skies::utils;
+	mpi::mpi_handler handler;
 
-	print_name();
+	skies::launch::Timer t;
+	if (mpi::is_root()) {
+		std::cout << "rank = " << mpi::rank() << std::endl;
+		t.start();
+
+		print_name();
 #ifdef SKIES_TBB
-	std::cout << "TBB version launched" << std::endl << std::endl;
+		std::cout << "TBB version launched" << std::endl << std::endl;
 #else
-	std::cout << "No TBB version launched" << std::endl << std::endl;
+		std::cout << "No TBB version launched" << std::endl << std::endl;
 #endif
-	t.print_start("The program started at ");
+
+		t.print_start("The program started at ");
+	}
 
 	std::vector<std::string> args;
 	std::unordered_map<std::string, std::string> opts;
@@ -65,18 +80,22 @@ try {
 
 	if (cmd != "help" && cmd != "list")
 	{
-		std::cout << "======== Some standard output from QE EPW:" << std::endl;
-		epiInit();
+		if (mpi::is_root())
+			std::cout << "======== Some standard output from QE EPW:" << std::endl;
+		int rank = mpi::rank();
+		MPI_Fint f_comm = 0;
+		epiInit(&f_comm, &rank);
 	}
 	skies::launch::parse_opts(argc - 1, argv + 1, args, opts);
-	if ((cmd == "help") && (args.size() == 1))
+	if ((mpi::is_root()) && (cmd == "help") && (args.size() == 1))
 		skies::launch::help_for_cmd(skies::launch::str_to_CMD(args[0]));
 	skies::launch::resolve_cmd(skies::launch::str_to_CMD(cmd), args, opts);
 
-	t.stop();
-	t.print_stop("SKiES finished successfully at ");
-	std::cout << "Total work time: " << t.elapsed() << " s" << std::endl;
-
+	if (mpi::is_root()) {
+		t.stop();
+		t.print_stop("SKiES finished successfully at ");
+		std::cout << "Total work time: " << t.elapsed() << " s" << std::endl;
+	}
 } catch (std::runtime_error& err) {
 	std::cout << "\nERROR: " << err.what() << std::endl;
 } catch (std::invalid_argument& err) {

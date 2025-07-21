@@ -1,0 +1,30 @@
+--
+&inputepw
+  prefix      = 'ag'
+  amass(1)    = 107.87
+  outdir      = './'
+  dvscf_dir   = './save'
+
+  elph        = .true.
+  epbwrite    = .true.
+  epbread     = .false.
+  epwwrite    = .true.
+  epwread     = .false.
+  vme         = 'wannier'
+
+  nbndsub     =  9
+  bands_skipped = 'exclude_bands = 10-11'
+
+  wannierize  = .true.
+  num_iter    = 500
+  dis_win_max = 80.0
+  dis_froz_max = 50.0
+
+  nk1         = 6
+  nk2         = 6
+  nk3         = 6
+
+  nq1         = 6
+  nq2         = 6
+  nq3         = 6
+ /

@@ -1,0 +1,10 @@
+--- epw_readin.f90	2025-07-13 21:53:01.976942035 +1000
++++ epw_readin_mod.f90	2025-07-13 21:53:57.728996444 +1000
+@@ -416,6 +416,7 @@
+   !             Before v5.4, vme = .TRUE. was = to 'wannier'
+   !
+   !
++  npool = nproc
+   IF ( npool * nimage /= nproc ) THEN
+     CALL errore("epw_readin", "Number of processes must be equal to product "//&
+                 "of number of pools and"//new_line('n')//"     number of "//&

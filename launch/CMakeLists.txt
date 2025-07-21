@@ -8,6 +8,9 @@ if (SKIES_ENABLE_TBB)
 	target_link_libraries(skies PRIVATE TBB::tbb)
 endif()
 
+target_link_libraries(skies PRIVATE MPI::MPI_C)
+target_link_libraries(skies PRIVATE MPI::MPI_Fortran)
+
 target_link_libraries(skies PRIVATE skies_interface)
 
 target_include_directories(skies PRIVATE

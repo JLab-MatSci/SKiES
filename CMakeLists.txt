@@ -45,6 +45,8 @@ option(SKIES_ENABLE_TEST                  "Tests support" OFF)
 find_package(Mbd REQUIRED)
 find_package(qe REQUIRED)
 
+find_package(MPI REQUIRED)
+
 # add TBB library to use C++17 parallelization facilities
 if (SKIES_ENABLE_TBB)
     find_package(TBB REQUIRED)
